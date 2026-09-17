@@ -1,0 +1,153 @@
+# Dual-EKF + navsat state estimation for Hege.
+#
+# ekf_local   : odom -> base_footprint. Wheel odometry + IMU only. Smooth and
+#               continuous, drifts slowly. REP-105 requires this edge never to
+#               jump, which is why GPS is deliberately absent here.
+# ekf_global  : map  -> odom. Same inputs plus GPS. Jumps when GPS corrects,
+#               but does not drift. The jump lands on map->odom, leaving
+#               odom->base_footprint untouched.
+# navsat_transform : turns /gps/fix (lat/lon) into a metric pose in the map
+#               frame, published on /odometry/gps for ekf_global.
+#
+# The sensor config arrays are:
+#   [x,  y,  z,  roll, pitch, yaw,  vx, vy, vz,  vroll, vpitch, vyaw,  ax, ay, az]
+# The rule that matters: never fuse the same quantity from two sources into one
+# filter. Here the wheels supply forward speed, the IMU supplies heading and
+# turn rate, and GPS supplies absolute position. No overlap.
+
+ekf_local:
+  ros__parameters:
+    use_sim_time: true
+    frequency: 30.0
+    sensor_timeout: 0.1
+    # Ground vehicle: force z, roll and pitch to zero rather than letting
+    # sensor noise wander into them.
+    two_d_mode: true
+    publish_tf: true
+    print_diagnostics: true
+
+    map_frame: map
+    odom_frame: odom
+    # The URDF root is base_footprint, and that is also the controller's
+    # robot_base_frame, so the whole chain has to agree on it.
+    base_link_frame: base_footprint
+    world_frame: odom
+
+    # Wheel odometry: forward speed only. Its absolute pose is exactly the
+    # thing that drifts, so we take the velocity and let the filter integrate.
+    odom0: /ackermann_steering_controller/odometry
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, false,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_nodelay: true
+    odom0_differential: false
+    odom0_relative: false
+
+    # IMU: absolute heading and turn rate. In Gazebo this orientation is world
+    # ENU because the sensor is configured with
+    # initial_orientation_as_reference=false; on the real Hege the same field
+    # comes from the PX4 compass.
+    imu0: /imu/data
+    imu0_config: [false, false, false,
+                  false, false, true,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_queue_size: 10
+    imu0_nodelay: true
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true
+
+
+ekf_global:
+  ros__parameters:
+    use_sim_time: true
+    frequency: 30.0
+    sensor_timeout: 0.1
+    two_d_mode: true
+    publish_tf: true
+    print_diagnostics: true
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    # The only structural difference from ekf_local.
+    world_frame: map
+
+    odom0: /ackermann_steering_controller/odometry
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, false,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_nodelay: true
+    odom0_differential: false
+    odom0_relative: false
+
+    # The extra input: absolute position from GPS, via navsat_transform.
+    # Position only - GPS heading would be redundant with the IMU and is
+    # meaningless at standstill anyway.
+    odom1: /odometry/gps
+    odom1_config: [true,  true,  false,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
+    odom1_queue_size: 10
+    odom1_nodelay: true
+    odom1_differential: false
+    odom1_relative: false
+
+    imu0: /imu/data
+    imu0_config: [false, false, false,
+                  false, false, true,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_queue_size: 10
+    imu0_nodelay: true
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true
+
+
+navsat_transform:
+  ros__parameters:
+    use_sim_time: true
+    frequency: 30.0
+    delay: 3.0
+
+    # 0.0 for simulation on both counts.
+    #   - The Gazebo IMU reports true ENU heading, so there is no magnetic
+    #     field involved and no declination to correct.
+    #   - yaw_offset compensates for an IMU whose zero points at magnetic
+    #     north instead of east. Ours reads 0 facing east already. The stock
+    #     robot_localization example uses 1.5707963 here; copying that value
+    #     blindly is the classic way to end up 90 degrees off course.
+    # Both need revisiting for the real robot, where heading comes from the
+    # PX4 compass.
+    magnetic_declination_radians: 0.0
+    yaw_offset: 0.0
+
+    # Ground vehicle, and two_d_mode is on in both filters.
+    zero_altitude: true
+
+    broadcast_utm_transform: true
+    publish_filtered_gps: true
+
+    # Take heading from the IMU, not from the direction of travel. Course over
+    # ground is undefined at standstill, and the rover has to know which way it
+    # faces before it starts moving.
+    use_odometry_yaw: false
+
+    # Pin the map origin instead of letting the first fix define it. Without
+    # this the map frame lands somewhere slightly different on every run and
+    # stored waypoints stop meaning the same place. Matches the
+    # spherical_coordinates in worlds/hege_field.world.
+    wait_for_datum: true
+    datum: [52.466, 12.958, 0.0]

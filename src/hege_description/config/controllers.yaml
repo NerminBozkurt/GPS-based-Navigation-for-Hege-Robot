@@ -1,0 +1,59 @@
+# Controller configuration for the Hege Ackermann rover.
+#
+# NOTE: the geometry below duplicates the xacro properties in
+# urdf/hege.urdf.xacro. ros2_control reads this file directly, so it cannot see
+# the xacro values. When the real Hege is measured, BOTH places must be updated
+# or the controller's kinematics will silently disagree with the model.
+
+controller_manager:
+  ros__parameters:
+    update_rate: 50  # Hz
+    use_sim_time: true
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    ackermann_steering_controller:
+      type: ackermann_steering_controller/AckermannSteeringController
+
+
+ackermann_steering_controller:
+  ros__parameters:
+    use_sim_time: true
+
+    # Rear-wheel drive, front-wheel steering.
+    front_steering: true
+    rear_wheels_names: [left_rear_wheel_joint, right_rear_wheel_joint]
+    # Order is RIGHT then LEFT. With the natural [left, right] order the
+    # controller gave the larger steering angle to the outer wheel instead of
+    # the inner one - measurably wrong Ackermann geometry.
+    front_wheels_names: [right_steer_joint, left_steer_joint]
+
+    # Traction feedback comes from wheel velocity, not position.
+    position_feedback: false
+    open_loop: false
+    velocity_rolling_window_size: 10
+
+    # Plain geometry_msgs/Twist on ~/reference_unstamped rather than
+    # TwistStamped, so Nav2's /cmd_vel can drive this directly.
+    use_stamped_vel: false
+
+    # Zero the command if nothing arrives for this long. Keeps the rover from
+    # running away when a planner dies mid-run.
+    reference_timeout: 0.5
+
+    # --- measured Hege geometry (see note at top of file) ---
+    # Front and rear wheels are different sizes (27 cm vs 40 cm) and the tracks
+    # differ slightly, so none of these may be collapsed into a single value.
+    wheelbase: 1.91
+    front_wheel_track: 1.55
+    rear_wheel_track: 1.50
+    front_wheels_radius: 0.27
+    rear_wheels_radius: 0.40
+
+    odom_frame_id: odom
+    base_frame_id: base_footprint
+    # False because robot_localization's local EKF now owns odom->base_footprint.
+    # Leaving this true puts two publishers on the same TF edge, and they fight.
+    # The odometry TOPIC is still published and is what the EKF consumes.
+    enable_odom_tf: false

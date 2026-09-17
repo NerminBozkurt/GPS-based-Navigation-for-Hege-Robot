@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="hege_field">
+
+    <!-- Anchors Gazebo's (0,0,0) to a real lat/lon. Without this the GPS
+         sensor reports 0N 0E and navsat_transform has no sensible datum.
+         Approximate ATB Fieldlab Marquardt (near Potsdam) - replace with the
+         surveyed demo-site coordinates when they are known. -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>52.466</latitude_deg>
+      <longitude_deg>12.958</longitude_deg>
+      <elevation>35.0</elevation>
+      <!-- 180, not 0, and this is not a description of the site.
+           Gazebo Classic's spherical-coordinate conversion mirrors the local
+           frame: with heading_deg 0 the GPS sensor reported the exact negative
+           of the model's true world position (measured ratio -1.006/-1.002 on
+           both axes), so a rover driving to world x=+7.6 was reported as
+           7.6 m WEST. heading_deg 180 cancels that rotation. Verified: world
+           delta +7.609 now reads as GPS delta +7.595 east.
+           Recheck this if the Gazebo version changes - if the upstream bug is
+           ever fixed, this line becomes the bug. -->
+      <heading_deg>180</heading_deg>
+    </spherical_coordinates>
+
+    <include><uri>model://sun</uri></include>
+    <include><uri>model://ground_plane</uri></include>
+
+    <physics name="default_physics" default="true" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- Ground truth for evaluation only. Publishes every model's exact pose
+         on /model_states with no noise. Nothing in the navigation stack may
+         consume this - it exists so the estimates can be scored against the
+         real answer. Preferred over gazebo_ros_p3d, whose reported position
+         came out sign-flipped relative to its own reported orientation. -->
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros><namespace>/</namespace></ros>
+      <update_rate>50.0</update_rate>
+    </plugin>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <shadows>true</shadows>
+    </scene>
+
+  </world>
+</sdf>

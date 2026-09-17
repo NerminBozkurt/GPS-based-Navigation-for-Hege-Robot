@@ -1,0 +1,385 @@
+<?xml version="1.0"?>
+<robot name="hege" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- How the rover is driven in Gazebo.
+         planar        - libgazebo_ros_planar_move drives base_link directly
+                         from /cmd_vel. Simple and reliable, good for checking
+                         the model and exercising the sensors, but it is NOT
+                         Ackermann: it will happily spin in place and strafe,
+                         so it cannot be used to judge whether a path is
+                         actually drivable.
+         ros2_control  - gazebo_ros2_control + ackermann_steering_controller.
+                         Real Ackermann kinematics, and the path to the real
+                         robot, but currently held up by a controller bug that
+                         makes the rover creep at 1 m/s on startup. -->
+  <xacro:arg name="drive" default="planar"/>
+  <xacro:property name="drive" value="$(arg drive)"/>
+
+  <!-- ============ MEASURED HEGE DIMENSIONS ============ -->
+  <!-- Body. base_link sits at the underside of the chassis, body_z_offset above
+       it is the box centre, and base_z is how high base_link rides above the
+       ground. -->
+  <xacro:property name="base_length"   value="2.2"/>
+  <xacro:property name="base_width"    value="1.4"/>
+  <xacro:property name="base_height"   value="0.8"/>
+  <xacro:property name="base_mass"     value="50.0"/>
+  <xacro:property name="body_z_offset" value="0.4"/>
+  <xacro:property name="base_z"        value="1.1"/>
+
+  <!-- Front and rear wheels are DIFFERENT sizes on Hege: 27 cm front, 40 cm
+       rear. Everything downstream has to respect that - the axle heights below
+       are derived from each radius so both pairs touch the ground, and
+       controllers.yaml carries the two radii separately. -->
+  <xacro:property name="front_wheel_radius" value="0.27"/>
+  <xacro:property name="rear_wheel_radius"  value="0.40"/>
+  <xacro:property name="wheel_width"        value="0.2"/>
+  <xacro:property name="wheel_mass"         value="5.0"/>
+
+  <!-- Front and rear tracks also differ slightly. -->
+  <xacro:property name="wheelbase"   value="1.91"/>
+  <xacro:property name="front_track" value="1.55"/>
+  <xacro:property name="rear_track"  value="1.50"/>
+
+  <!-- STILL UNMEASURED. Minimum turning radius is wheelbase/tan(max_steer),
+       so at 1.91 m wheelbase this value sets it to 2.79 m - nearly three times
+       the old placeholder geometry. Nav2's controller tuning depends on it. -->
+  <xacro:property name="max_steer" value="0.6"/>   <!-- ~34 deg -->
+
+  <!-- Axle heights relative to base_link, derived so each wheel rests on the
+       ground given its own radius. -->
+  <xacro:property name="front_axle_z" value="${front_wheel_radius - base_z}"/>
+  <xacro:property name="rear_axle_z"  value="${rear_wheel_radius - base_z}"/>
+
+  <!-- GPS antenna height above base_link, as supplied. NOTE: the chassis box
+       spans 0 to 0.8 above base_link, so at 0.5 the antenna sits inside the
+       body volume. The real RTK antenna is mast-mounted above the roof; raise
+       this past base_height once the mast is measured, because
+       robot_localization uses base_link->gps_link as the lever arm. -->
+  <xacro:property name="gps_z" value="0.5"/>
+
+  <!-- ============ INERTIA HELPERS ============ -->
+  <!-- Hand-written inertia tensors that disagree with the link's mass and
+       geometry are the usual cause of ODE blowing up into NaN. These compute
+       the real thing so the numbers stay consistent when dimensions change. -->
+  <xacro:macro name="box_inertia" params="m x y z">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(y*y+z*z)/12.0}" ixy="0" ixz="0"
+               iyy="${m*(x*x+z*z)/12.0}" iyz="0"
+               izz="${m*(x*x+y*y)/12.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- Cylinder spun about its local z axis, which is how the wheels are built. -->
+  <xacro:macro name="cylinder_inertia" params="m r h">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(3*r*r+h*h)/12.0}" ixy="0" ixz="0"
+               iyy="${m*(3*r*r+h*h)/12.0}" iyz="0"
+               izz="${m*r*r/2.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- Contact/friction tuning shared by all four wheels. Without explicit kp/kd
+       the wheels sink into the ground plane and jitter. -->
+  <xacro:macro name="wheel_surface" params="link">
+    <gazebo reference="${link}">
+      <mu1>1.0</mu1>
+      <mu2>1.0</mu2>
+      <kp>1000000.0</kp>
+      <kd>100.0</kd>
+      <minDepth>0.001</minDepth>
+      <maxVel>1.0</maxVel>
+    </gazebo>
+  </xacro:macro>
+
+  <link name="base_footprint"/>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${body_z_offset}" rpy="0 0 0"/>
+      <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
+      <material name="orange"><color rgba="1 0.5 0 1"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${body_z_offset}" rpy="0 0 0"/>
+      <geometry><box size="${base_length} ${base_width} ${base_height}"/></geometry>
+    </collision>
+    <xacro:box_inertia m="${base_mass}" x="${base_length}" y="${base_width}" z="${base_height}"/>
+  </link>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child  link="base_link"/>
+    <origin xyz="0 0 ${base_z}"/>
+  </joint>
+
+  <!-- ============ REAR (driven) WHEELS ============ -->
+  <xacro:macro name="rear_wheel" params="prefix y_sign">
+    <link name="${prefix}_rear_wheel">
+      <visual>
+        <geometry><cylinder radius="${rear_wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="black"><color rgba="0 0 0 1"/></material>
+      </visual>
+      <collision>
+        <geometry><cylinder radius="${rear_wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <xacro:cylinder_inertia m="${wheel_mass}" r="${rear_wheel_radius}" h="${wheel_width}"/>
+    </link>
+    <joint name="${prefix}_rear_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child  link="${prefix}_rear_wheel"/>
+      <!-- rpy is NEGATIVE 90 about x. With +90 the joint's z axis lands on -y,
+           which makes a positive wheel velocity drive the rover backwards.
+           Measured: commanded +1.5 m/s moved the model to world x = -7.4. -->
+      <origin xyz="${-wheelbase/2} ${y_sign*rear_track/2} ${rear_axle_z}" rpy="-1.5708 0 0"/>
+      <axis xyz="0 0 1"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:rear_wheel prefix="left"  y_sign=" 1"/>
+  <xacro:rear_wheel prefix="right" y_sign="-1"/>
+  <xacro:wheel_surface link="left_rear_wheel"/>
+  <xacro:wheel_surface link="right_rear_wheel"/>
+
+  <!-- ============ FRONT (steered) WHEELS ============ -->
+  <!-- Each front side needs TWO joints: a revolute steer + a continuous roll -->
+  <xacro:macro name="front_wheel" params="prefix y_sign">
+    <!-- Steering hinge link (small, no visual mass) -->
+    <link name="${prefix}_steer_link">
+      <!-- Deliberately heavier than the real steering knuckle, and scaled with
+           the wheel it carries. A large mass ratio across a joint is something
+           ODE cannot solve stably - it diverges to NaN within a few steps. -->
+      <inertial>
+        <mass value="${wheel_mass}"/>
+        <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/>
+      </inertial>
+    </link>
+    <joint name="${prefix}_steer_joint" type="revolute">
+      <parent link="base_link"/>
+      <child  link="${prefix}_steer_link"/>
+      <origin xyz="${wheelbase/2} ${y_sign*front_track/2} ${front_axle_z}"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="${-max_steer}" upper="${max_steer}" effort="100" velocity="2.0"/>
+    </joint>
+
+    <!-- Actual rolling wheel attached to the steer link -->
+    <link name="${prefix}_front_wheel">
+      <visual>
+        <geometry><cylinder radius="${front_wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="black"><color rgba="0 0 0 1"/></material>
+      </visual>
+      <collision>
+        <geometry><cylinder radius="${front_wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <xacro:cylinder_inertia m="${wheel_mass}" r="${front_wheel_radius}" h="${wheel_width}"/>
+    </link>
+    <joint name="${prefix}_front_wheel_joint" type="continuous">
+      <parent link="${prefix}_steer_link"/>
+      <child  link="${prefix}_front_wheel"/>
+      <origin xyz="0 0 0" rpy="-1.5708 0 0"/>
+      <axis xyz="0 0 1"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:front_wheel prefix="left"  y_sign=" 1"/>
+  <xacro:front_wheel prefix="right" y_sign="-1"/>
+  <xacro:wheel_surface link="left_front_wheel"/>
+  <xacro:wheel_surface link="right_front_wheel"/>
+
+  <!-- ============ SENSOR FRAMES ============ -->
+  <!-- Small inertials keep Gazebo from warning about massless links. Both are
+       attached by fixed joints, so SDF conversion lumps them into base_link;
+       the sensors still report in their own frame_name, which
+       robot_state_publisher provides from the URDF. -->
+
+  <!-- IMU at the chassis centre -->
+  <link name="imu_link">
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+    </inertial>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="imu_link"/>
+    <origin xyz="0 0 ${body_z_offset}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- GPS antenna, top of chassis + mast -->
+  <link name="gps_link">
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+    </inertial>
+  </link>
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="gps_link"/>
+    <origin xyz="0 0 ${gps_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ IMU SENSOR ============ -->
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100.0</update_rate>
+      <visualize>false</visualize>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+      <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>~/out:=imu/data</remapping>
+        </ros>
+        <frame_name>imu_link</frame_name>
+        <!-- false = report orientation in the world ENU frame (REP-145).
+             Leaving this at its default of true reports orientation relative
+             to wherever the robot happened to start, which breaks the
+             absolute-heading input the global EKF needs. -->
+        <initial_orientation_as_reference>false</initial_orientation_as_reference>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- ============ GPS SENSOR ============ -->
+  <gazebo reference="gps_link">
+    <sensor name="gps_sensor" type="gps">
+      <always_on>true</always_on>
+      <update_rate>10.0</update_rate>
+      <gps>
+        <position_sensing>
+          <!-- RTK-fixed grade: ~2 cm horizontal. Raise stddev to 0.5-2.0 for
+               the Goal 2 degraded-fix robustness runs. -->
+          <horizontal>
+            <noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise>
+          </horizontal>
+          <vertical>
+            <noise type="gaussian"><mean>0.0</mean><stddev>0.04</stddev></noise>
+          </vertical>
+        </position_sensing>
+      </gps>
+      <plugin name="gps_plugin" filename="libgazebo_ros_gps_sensor.so">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>~/out:=gps/fix</remapping>
+        </ros>
+        <frame_name>gps_link</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+
+
+  <!-- ============ PLANAR DRIVE (keyboard / teleop) ============ -->
+  <xacro:if value="${drive == 'planar'}">
+    <gazebo>
+      <plugin name="planar_move" filename="libgazebo_ros_planar_move.so">
+        <ros><namespace>/</namespace></ros>
+        <update_rate>50</update_rate>
+        <publish_rate>50</publish_rate>
+        <publish_odom>true</publish_odom>
+        <publish_odom_tf>true</publish_odom_tf>
+        <odometry_frame>odom</odometry_frame>
+        <robot_base_frame>base_footprint</robot_base_frame>
+        <covariance_x>0.0001</covariance_x>
+        <covariance_y>0.0001</covariance_y>
+        <covariance_yaw>0.01</covariance_yaw>
+      </plugin>
+    </gazebo>
+
+    <!-- joint_state_broadcaster is not running in this mode, so the wheel and
+         steer joints would otherwise have no TF at all. -->
+    <gazebo>
+      <plugin name="joint_state_publisher" filename="libgazebo_ros_joint_state_publisher.so">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>~/out:=joint_states</remapping>
+        </ros>
+        <update_rate>50</update_rate>
+        <joint_name>left_rear_wheel_joint</joint_name>
+        <joint_name>right_rear_wheel_joint</joint_name>
+        <joint_name>left_steer_joint</joint_name>
+        <joint_name>right_steer_joint</joint_name>
+        <joint_name>left_front_wheel_joint</joint_name>
+        <joint_name>right_front_wheel_joint</joint_name>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="${drive == 'ros2_control'}">
+    <!-- ============ ros2_control HARDWARE INTERFACE ============ -->
+    <!-- This is the sim/real seam. In Gazebo the joints are backed by
+         GazeboSystem; on the real Hege the same controller sits on top of a
+         hardware interface that talks to PX4, and neither the controller config
+         nor Nav2 above it changes. -->
+    <ros2_control name="HegeGazeboSystem" type="system">
+      <hardware>
+        <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+      </hardware>
+
+      <!-- Rear wheels: traction, velocity commanded -->
+      <joint name="left_rear_wheel_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="right_rear_wheel_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- Front knuckles: steering, position commanded -->
+      <joint name="left_steer_joint">
+        <command_interface name="position">
+          <param name="min">${-max_steer}</param>
+          <param name="max">${max_steer}</param>
+        </command_interface>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="right_steer_joint">
+        <command_interface name="position">
+          <param name="min">${-max_steer}</param>
+          <param name="max">${max_steer}</param>
+        </command_interface>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- Front wheels just roll; nothing commands them. Declared state-only so
+           joint_state_broadcaster reports them and robot_state_publisher can
+           emit their TF - without this, left_front_wheel and right_front_wheel
+           have no frame at all. -->
+      <joint name="left_front_wheel_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="right_front_wheel_joint">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </ros2_control>
+
+    <!-- ============ gazebo_ros2_control PLUGIN ============ -->
+    <gazebo>
+      <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+        <parameters>$(find hege_description)/config/controllers.yaml</parameters>
+        <robot_param>robot_description</robot_param>
+        <robot_param_node>robot_state_publisher</robot_param_node>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+</robot>
