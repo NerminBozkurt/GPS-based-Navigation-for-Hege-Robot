@@ -258,9 +258,22 @@ navsat_transform:
     # faces before it starts moving.
     use_odometry_yaw: false
 
-    # Pin the map origin instead of letting the first fix define it. Without
-    # this the map frame lands somewhere slightly different on every run and
-    # stored waypoints stop meaning the same place. Matches the
-    # spherical_coordinates in worlds/hege_field.world.
-    wait_for_datum: true
+    # Where the map frame's origin sits on the Earth.
+    #
+    # wait_for_datum is overridden by the launch file and defaults to FALSE, so
+    # navsat_transform takes its origin from the first GPS fix. That is what we
+    # want in the field: nobody has to survey a point and type coordinates in
+    # before the rover can run. It costs nothing as long as waypoints are given
+    # as latitude/longitude, because each one is converted into whatever map
+    # frame the run happens to have - the rover still drives to the right patch
+    # of ground. It only matters if waypoints are stored as metric map
+    # coordinates, which would then mean a different place on every run.
+    #
+    # The one real risk is anchoring the whole map on a single bad fix, so on
+    # the real robot wait for RTK to reach a fixed solution before starting.
+    #
+    # The coordinates below are used only when the launch file is given
+    # use_datum:=true, which pins the origin for repeatable simulation runs.
+    # They match the spherical_coordinates in worlds/hege_field.world.
+    wait_for_datum: false
     datum: [52.466, 12.958, 0.0]

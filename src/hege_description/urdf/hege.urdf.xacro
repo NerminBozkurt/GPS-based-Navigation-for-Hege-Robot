@@ -15,6 +15,36 @@
   <xacro:arg name="drive" default="planar"/>
   <xacro:property name="drive" value="$(arg drive)"/>
 
+  <!-- Sensor realism knobs, exposed so a run can be degraded without editing
+       this file. Pass them through the launch file, e.g.
+         ros2 launch hege_description spawn_hege.launch.py gps_noise:=1.5
+       to simulate losing the RTK fix. -->
+
+  <!-- GPS horizontal standard deviation, metres. 0.02 is RTK-fixed. Roughly
+       0.3-0.5 for RTK float and 1.5-3.0 for a single-point solution - those
+       are the Goal 2 robustness cases. -->
+  <xacro:arg name="gps_noise" default="0.02"/>
+  <xacro:property name="gps_noise" value="$(arg gps_noise)"/>
+
+  <!-- Gyro and accelerometer bias. A real MEMS IMU's dominant error is not
+       white noise but a bias drawn at startup that then wanders, and that is
+       what makes dead reckoning fall apart. Leaving these at zero, as this
+       model did until now, hands the filter an IMU better than any that
+       exists. bias_mean is the centre of the startup distribution, bias_stddev
+       its spread. -->
+  <xacro:arg name="imu_gyro_bias"  default="7.5e-6"/>
+  <xacro:arg name="imu_accel_bias" default="0.05"/>
+  <xacro:property name="imu_gyro_bias"  value="$(arg imu_gyro_bias)"/>
+  <xacro:property name="imu_accel_bias" value="$(arg imu_accel_bias)"/>
+
+  <!-- White noise per sample. Datasheets quote noise DENSITY, per root-hertz;
+       convert with stddev = density * sqrt(rate) before putting a number
+       here. -->
+  <xacro:arg name="imu_gyro_noise"  default="2e-4"/>
+  <xacro:arg name="imu_accel_noise" default="1.7e-2"/>
+  <xacro:property name="imu_gyro_noise"  value="$(arg imu_gyro_noise)"/>
+  <xacro:property name="imu_accel_noise" value="$(arg imu_accel_noise)"/>
+
   <!-- ============ MEASURED HEGE DIMENSIONS ============ -->
   <!-- Body. base_link sits at the underside of the chassis, body_z_offset above
        it is the box centre, and base_z is how high base_link rides above the
@@ -227,14 +257,14 @@
       <visualize>false</visualize>
       <imu>
         <angular_velocity>
-          <x><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></x>
-          <y><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></y>
-          <z><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></z>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>${imu_gyro_noise}</stddev><bias_mean>${imu_gyro_bias}</bias_mean><bias_stddev>${imu_gyro_bias}</bias_stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>${imu_gyro_noise}</stddev><bias_mean>${imu_gyro_bias}</bias_mean><bias_stddev>${imu_gyro_bias}</bias_stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>${imu_gyro_noise}</stddev><bias_mean>${imu_gyro_bias}</bias_mean><bias_stddev>${imu_gyro_bias}</bias_stddev></noise></z>
         </angular_velocity>
         <linear_acceleration>
-          <x><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></x>
-          <y><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></y>
-          <z><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></z>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>${imu_accel_noise}</stddev><bias_mean>${imu_accel_bias}</bias_mean><bias_stddev>${imu_accel_bias}</bias_stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>${imu_accel_noise}</stddev><bias_mean>${imu_accel_bias}</bias_mean><bias_stddev>${imu_accel_bias}</bias_stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>${imu_accel_noise}</stddev><bias_mean>${imu_accel_bias}</bias_mean><bias_stddev>${imu_accel_bias}</bias_stddev></noise></z>
         </linear_acceleration>
       </imu>
       <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
@@ -259,13 +289,13 @@
       <update_rate>10.0</update_rate>
       <gps>
         <position_sensing>
-          <!-- RTK-fixed grade: ~2 cm horizontal. Raise stddev to 0.5-2.0 for
-               the Goal 2 degraded-fix robustness runs. -->
           <horizontal>
-            <noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise>
+            <noise type="gaussian"><mean>0.0</mean><stddev>${gps_noise}</stddev></noise>
           </horizontal>
+          <!-- Vertical error runs about twice the horizontal on any GNSS
+               receiver, so it is derived rather than set separately. -->
           <vertical>
-            <noise type="gaussian"><mean>0.0</mean><stddev>0.04</stddev></noise>
+            <noise type="gaussian"><mean>0.0</mean><stddev>${gps_noise * 2}</stddev></noise>
           </vertical>
         </position_sensing>
       </gps>

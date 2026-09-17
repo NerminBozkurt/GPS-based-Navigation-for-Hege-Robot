@@ -39,8 +39,14 @@ def launch_setup(context, *args, **kwargs):
     # Without both, controller_manager never starts and the controller spawners
     # wait forever on /controller_manager/list_controllers.
     drive = LaunchConfiguration('drive').perform(context)
+    # Everything the xacro exposes as an <arg> is forwarded here, so a run can
+    # be degraded from the command line without touching the model.
+    mappings = {name: LaunchConfiguration(name).perform(context)
+                for name in ('drive', 'gps_noise', 'imu_gyro_bias',
+                             'imu_accel_bias', 'imu_gyro_noise',
+                             'imu_accel_noise')}
     robot_description_xml = xacro.process_file(
-        xacro_file, mappings={'drive': drive}).documentElement.toxml()
+        xacro_file, mappings=mappings).documentElement.toxml()
     robot_description_xml = re.sub(r'<!--.*?-->', '', robot_description_xml,
                                    flags=re.DOTALL)
 
@@ -156,5 +162,25 @@ def generate_launch_description():
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('z', default_value='0.3'),
         DeclareLaunchArgument('yaw', default_value='0.0'),
+
+        # Sensor realism. Defaults match the model's own defaults; override to
+        # degrade a run, e.g. gps_noise:=1.5 for a single-point GNSS solution.
+        DeclareLaunchArgument(
+            'gps_noise', default_value='0.02',
+            description='GPS horizontal stddev in metres. 0.02 RTK-fixed, '
+                        '~0.4 RTK float, ~2.0 single-point.'),
+        DeclareLaunchArgument(
+            'imu_gyro_bias', default_value='7.5e-6',
+            description='Gyro bias, rad/s. Zero gives an unrealistically good IMU.'),
+        DeclareLaunchArgument(
+            'imu_accel_bias', default_value='0.05',
+            description='Accelerometer bias, m/s^2.'),
+        DeclareLaunchArgument(
+            'imu_gyro_noise', default_value='2e-4',
+            description='Gyro white noise stddev per sample, rad/s.'),
+        DeclareLaunchArgument(
+            'imu_accel_noise', default_value='1.7e-2',
+            description='Accelerometer white noise stddev per sample, m/s^2.'),
+
         OpaqueFunction(function=launch_setup),
     ])

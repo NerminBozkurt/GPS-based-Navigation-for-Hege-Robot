@@ -26,6 +26,7 @@ def generate_launch_description():
         'config', 'dual_ekf_navsat.yaml')
 
     use_sim_time = LaunchConfiguration('use_sim_time')
+    use_datum = LaunchConfiguration('use_datum')
 
     # Local filter. Owns odom -> base_footprint. No GPS on purpose.
     ekf_local = Node(
@@ -55,7 +56,8 @@ def generate_launch_description():
         executable='navsat_transform_node',
         name='navsat_transform',
         output='screen',
-        parameters=[params, {'use_sim_time': use_sim_time}],
+        parameters=[params, {'use_sim_time': use_sim_time,
+                             'wait_for_datum': use_datum}],
         remappings=[
             ('imu', '/imu/data'),
             ('gps/fix', '/gps/fix'),
@@ -68,6 +70,12 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'use_sim_time', default_value='true',
             description='Use the /clock topic published by Gazebo.'),
+        DeclareLaunchArgument(
+            'use_datum', default_value='false',
+            description='false: take the map origin from the first GPS fix, so '
+                        'nothing has to be surveyed beforehand. true: pin it to '
+                        'the datum in the config, which keeps simulation runs '
+                        'comparable with each other.'),
         ekf_local,
         ekf_global,
         navsat_transform,
