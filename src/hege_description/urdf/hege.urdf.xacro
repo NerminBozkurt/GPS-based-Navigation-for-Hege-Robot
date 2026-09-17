@@ -15,35 +15,34 @@
   <xacro:arg name="drive" default="planar"/>
   <xacro:property name="drive" value="$(arg drive)"/>
 
-  <!-- Sensor realism knobs, exposed so a run can be degraded without editing
-       this file. Pass them through the launch file, e.g.
-         ros2 launch hege_description spawn_hege.launch.py gps_noise:=1.5
-       to simulate losing the RTK fix. -->
+  <!-- ============ SENSOR NOISE ============ -->
+  <!-- Edited here rather than passed in at launch. The workspace is built
+       with symlink install, so a change takes effect on the next launch with
+       no rebuild. -->
 
-  <!-- GPS horizontal standard deviation, metres. 0.02 is RTK-fixed. Roughly
-       0.3-0.5 for RTK float and 1.5-3.0 for a single-point solution - those
-       are the Goal 2 robustness cases. -->
-  <xacro:arg name="gps_noise" default="0.02"/>
-  <xacro:property name="gps_noise" value="$(arg gps_noise)"/>
+  <!-- GPS horizontal standard deviation, metres. Vertical is derived at twice
+       this, as it runs on any GNSS receiver.
+         0.02  RTK fixed
+         0.4   RTK float
+         2.0   single-point solution
+       The upper two are the Goal 2 robustness cases: raise this, run the same
+       route, and read the error off the localization monitor. -->
+  <xacro:property name="gps_noise" value="0.02"/>
 
   <!-- Gyro and accelerometer bias. A real MEMS IMU's dominant error is not
        white noise but a bias drawn at startup that then wanders, and that is
        what makes dead reckoning fall apart. Leaving these at zero, as this
        model did until now, hands the filter an IMU better than any that
-       exists. bias_mean is the centre of the startup distribution, bias_stddev
-       its spread. -->
-  <xacro:arg name="imu_gyro_bias"  default="7.5e-6"/>
-  <xacro:arg name="imu_accel_bias" default="0.05"/>
-  <xacro:property name="imu_gyro_bias"  value="$(arg imu_gyro_bias)"/>
-  <xacro:property name="imu_accel_bias" value="$(arg imu_accel_bias)"/>
+       exists. Raising the local EKF's worst error from 0.93 m to 3.39 m over
+       the same route is the honest number, not a regression. -->
+  <xacro:property name="imu_gyro_bias"  value="7.5e-6"/>
+  <xacro:property name="imu_accel_bias" value="0.05"/>
 
   <!-- White noise per sample. Datasheets quote noise DENSITY, per root-hertz;
        convert with stddev = density * sqrt(rate) before putting a number
        here. -->
-  <xacro:arg name="imu_gyro_noise"  default="2e-4"/>
-  <xacro:arg name="imu_accel_noise" default="1.7e-2"/>
-  <xacro:property name="imu_gyro_noise"  value="$(arg imu_gyro_noise)"/>
-  <xacro:property name="imu_accel_noise" value="$(arg imu_accel_noise)"/>
+  <xacro:property name="imu_gyro_noise"  value="2e-4"/>
+  <xacro:property name="imu_accel_noise" value="1.7e-2"/>
 
   <!-- ============ MEASURED HEGE DIMENSIONS ============ -->
   <!-- Body. base_link sits at the underside of the chassis, body_z_offset above
