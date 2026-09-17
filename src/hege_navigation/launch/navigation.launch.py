@@ -1,5 +1,8 @@
 """Nav2 bringup for Hege.
 
+Add rviz:=true to see what Nav2 is doing - the planned route, the local costmap,
+the fused pose estimate and the waypoints - next to Gazebo's view of the world.
+
 Runs on top of the simulation and the localization stack:
 
     ros2 launch hege_description spawn_hege.launch.py
@@ -16,6 +19,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -35,6 +39,7 @@ NODES = [
 def generate_launch_description():
     share = get_package_share_directory('hege_navigation')
     params = os.path.join(share, 'config', 'nav2_params.yaml')
+    rviz_config = os.path.join(share, 'rviz', 'navigation.rviz')
 
     # Absolute paths, resolved here. bt_navigator needs a real path and a
     # parameter file cannot expand $(find-pkg-share ...) on its own.
@@ -88,8 +93,22 @@ def generate_launch_description():
         }],
     )
 
+    rviz = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config],
+        parameters=[{'use_sim_time': use_sim_time}],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('rviz')),
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_sim_time', default_value='true',
             description='Use the /clock topic published by Gazebo.'),
-    ] + nodes + [lifecycle_manager])
+        DeclareLaunchArgument(
+            'rviz', default_value='false',
+            description='Also open RViz showing the plan, costmaps, pose '
+                        'estimate and waypoints.'),
+    ] + nodes + [lifecycle_manager, rviz])

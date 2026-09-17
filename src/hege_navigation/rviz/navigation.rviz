@@ -1,0 +1,146 @@
+# What the rover is doing, in one window. Gazebo shows the world; this shows
+# what Nav2 thinks about it - where it plans to go, what it believes the ground
+# looks like, and where the waypoints are.
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded: ~
+    Tree Height: 700
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 5
+      Plane Cell Count: 40
+      Color: 80; 80; 80
+      Reference Frame: map
+    - Class: rviz_default_plugins/RobotModel
+      Name: Hege
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+      Marker Scale: 3
+      Show Names: true
+    # The global plan: the route Hybrid-A* worked out, replanned once a second.
+    - Class: rviz_default_plugins/Path
+      Name: Global plan
+      Enabled: true
+      Topic:
+        Value: /plan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Color: 0; 255; 0
+      Line Style: Billboards
+      Line Width: 0.3
+      Alpha: 1
+    # The stretch the controller is actually chasing right now.
+    - Class: rviz_default_plugins/Path
+      Name: Local plan
+      Enabled: true
+      Topic:
+        Value: /local_plan
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Color: 255; 0; 255
+      Line Style: Billboards
+      Line Width: 0.2
+      Alpha: 1
+    # Waypoints, published by gps_waypoint_follower after it converts them.
+    - Class: rviz_default_plugins/MarkerArray
+      Name: GPS waypoints
+      Enabled: true
+      Topic:
+        Value: /gps_waypoints
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+    # Both costmaps are empty of obstacles - the robot has no sensor that could
+    # fill them - so what shows here is the inflation around the footprint.
+    - Class: rviz_default_plugins/Map
+      Name: Global costmap
+      Enabled: false
+      Topic:
+        Value: /global_costmap/costmap
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Color Scheme: costmap
+      Alpha: 0.3
+    - Class: rviz_default_plugins/Map
+      Name: Local costmap
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Color Scheme: costmap
+      Alpha: 0.5
+    # The fused estimate. Compare its drift against the rover's actual position
+    # in Gazebo.
+    - Class: rviz_default_plugins/Odometry
+      Name: Global EKF
+      Enabled: true
+      Topic:
+        Value: /odometry/filtered_map
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Keep: 100
+      Position Tolerance: 1
+      Angle Tolerance: 0.3
+      Shape:
+        Color: 0; 170; 255
+        Alpha: 0.8
+        Shaft Length: 1.5
+        Shaft Radius: 0.2
+        Head Length: 0.6
+        Head Radius: 0.4
+  Global Options:
+    # map, not odom: this is where the waypoints live.
+    Fixed Frame: map
+    Background Color: 48; 48; 48
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 90
+      Pitch: 0.9
+      Yaw: 2.3
+      Focal Point:
+        X: 14
+        Y: 15
+        Z: 0
+      Target Frame: map
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 900
+  Width: 1500

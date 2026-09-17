@@ -4,7 +4,7 @@ project(hege_navigation)
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY config launch behavior_trees
+  DIRECTORY config launch behavior_trees rviz
   DESTINATION share/${PROJECT_NAME}
 )
 
