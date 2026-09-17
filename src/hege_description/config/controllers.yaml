@@ -34,9 +34,12 @@ ackermann_steering_controller:
     open_loop: false
     velocity_rolling_window_size: 10
 
-    # Plain geometry_msgs/Twist on ~/reference_unstamped rather than
-    # TwistStamped, so Nav2's /cmd_vel can drive this directly.
-    use_stamped_vel: false
+    # TwistStamped on ~/reference. The unstamped path is deprecated and is
+    # removed in ROS 2 J-Turtle, and without a timestamp the controller cannot
+    # tell a fresh command from a stale one, which is exactly what
+    # reference_timeout below is supposed to act on. cmd_vel_relay stamps
+    # Nav2's and teleop's plain Twist on the way through.
+    use_stamped_vel: true
 
     # Zero the command if nothing arrives for this long. Keeps the rover from
     # running away when a planner dies mid-run.
