@@ -137,7 +137,10 @@ navsat_transform:
     # Ground vehicle, and two_d_mode is on in both filters.
     zero_altitude: true
 
-    broadcast_utm_transform: true
+    # Renamed upstream from broadcast_utm_transform, which still works but
+    # warns on every startup. Puts a map -> utm transform on /tf_static, handy
+    # when cross-checking a fix against real-world coordinates.
+    broadcast_cartesian_transform: true
     publish_filtered_gps: true
 
     # Take heading from the IMU, not from the direction of travel. Course over
