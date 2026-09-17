@@ -68,9 +68,23 @@ ekf_local:
       0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.015   # az
     ]
 
-    # Scales Q with the current velocity, so the pose covariance stops growing
-    # while the rover is parked. Off for now - worth trying if the estimate is
-    # seen to wander at standstill.
+    # Scales Q with the current velocity, the idea being that the pose
+    # covariance should not grow while the rover is parked.
+    #
+    # Tried and rejected, measured rather than assumed. Standing still it does
+    # help a little: the global estimate's wander over a minute fell from
+    # 0.101 m to 0.085 m. Moving, it hurts, because scaling Q up with speed
+    # makes the filter distrust its own model and chase GPS noise instead of
+    # smoothing it. Worst error against ground truth over the same route, next
+    # to the raw GPS error in that same run:
+    #
+    #     false   0.086 m vs GPS 0.096 m      false   0.121 m vs GPS 0.122 m
+    #     true    0.142 m vs GPS 0.142 m      true    0.216 m vs GPS 0.119 m
+    #
+    # With it off the fused estimate is at least as good as the GPS it is built
+    # from. With it on, in one run it was nearly twice as bad - the filter made
+    # the measurement worse. The rover spends almost all its time moving, and
+    # Nav2 wants a smooth estimate, so the standstill gain is not worth it.
     use_dynamic_process_noise_covariance: false
 
     # Wheel odometry: forward speed only. Its absolute pose is exactly the
@@ -150,9 +164,23 @@ ekf_global:
       0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.015   # az
     ]
 
-    # Scales Q with the current velocity, so the pose covariance stops growing
-    # while the rover is parked. Off for now - worth trying if the estimate is
-    # seen to wander at standstill.
+    # Scales Q with the current velocity, the idea being that the pose
+    # covariance should not grow while the rover is parked.
+    #
+    # Tried and rejected, measured rather than assumed. Standing still it does
+    # help a little: the global estimate's wander over a minute fell from
+    # 0.101 m to 0.085 m. Moving, it hurts, because scaling Q up with speed
+    # makes the filter distrust its own model and chase GPS noise instead of
+    # smoothing it. Worst error against ground truth over the same route, next
+    # to the raw GPS error in that same run:
+    #
+    #     false   0.086 m vs GPS 0.096 m      false   0.121 m vs GPS 0.122 m
+    #     true    0.142 m vs GPS 0.142 m      true    0.216 m vs GPS 0.119 m
+    #
+    # With it off the fused estimate is at least as good as the GPS it is built
+    # from. With it on, in one run it was nearly twice as bad - the filter made
+    # the measurement worse. The rover spends almost all its time moving, and
+    # Nav2 wants a smooth estimate, so the standstill gain is not worth it.
     use_dynamic_process_noise_covariance: false
 
     odom0: /ackermann_steering_controller/odometry
