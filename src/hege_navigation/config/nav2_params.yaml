@@ -1,0 +1,383 @@
+# Nav2 configuration for the Hege Ackermann field robot.
+#
+# Two things about this robot shape the whole file:
+#
+#   1. It is car-like. It cannot rotate on the spot and it cannot strafe, so
+#      every default that assumes a differential-drive base has to be replaced.
+#      DWB is out, the rotation shim is out, in-place recovery spins are out.
+#
+#   2. It has no perception sensors. There is no lidar and no depth camera, so
+#      the costmaps carry no obstacle data and nothing here can avoid anything.
+#      This is navigation across open ground, not obstacle avoidance. The layer
+#      structure is left in place so adding a sensor later is a small change.
+#
+# Numbers marked MEASURED came from driving the simulated robot and recording
+# what it actually did, not from a datasheet or a guess.
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    robot_base_frame: base_footprint
+    odom_topic: /odometry/filtered
+    bt_loop_duration: 10
+    default_server_timeout: 20
+
+    # The behaviour tree paths are set by navigation.launch.py, not here.
+    # They have to be absolute, and $(find-pkg-share ...) is not expanded in a
+    # plain parameter file - only nav2_bringup's own yaml rewriting does that.
+    #
+    # The trees are ours rather than the stock ones because the defaults
+    # recover from being stuck by spinning 1.57 rad on the spot, which this
+    # base cannot do; the action would be commanded and never complete. Ours
+    # keep the costmap clearing, the wait and the reverse, and drop the spin.
+    # The stock list, verbatim. Trimming it looks tempting - this base cannot
+    # spin, so why load the spin node - but these are the node types the
+    # default behaviour trees are written against, and a missing one stops
+    # bt_navigator from loading the tree at all. Loading a node is not the
+    # same as using it; whether the rover ever spins is decided by the
+    # behaviour tree and by behavior_server's plugin list, where spin is
+    # genuinely absent.
+    plugin_lib_names:
+      - nav2_compute_path_to_pose_action_bt_node
+      - nav2_compute_path_through_poses_action_bt_node
+      - nav2_smooth_path_action_bt_node
+      - nav2_follow_path_action_bt_node
+      - nav2_spin_action_bt_node
+      - nav2_wait_action_bt_node
+      - nav2_assisted_teleop_action_bt_node
+      - nav2_back_up_action_bt_node
+      - nav2_drive_on_heading_bt_node
+      - nav2_clear_costmap_service_bt_node
+      - nav2_is_stuck_condition_bt_node
+      - nav2_goal_reached_condition_bt_node
+      - nav2_goal_updated_condition_bt_node
+      - nav2_globally_updated_goal_condition_bt_node
+      - nav2_is_path_valid_condition_bt_node
+      - nav2_initial_pose_received_condition_bt_node
+      - nav2_reinitialize_global_localization_service_bt_node
+      - nav2_rate_controller_bt_node
+      - nav2_distance_controller_bt_node
+      - nav2_speed_controller_bt_node
+      - nav2_truncate_path_action_bt_node
+      - nav2_truncate_path_local_action_bt_node
+      - nav2_goal_updater_node_bt_node
+      - nav2_recovery_node_bt_node
+      - nav2_pipeline_sequence_bt_node
+      - nav2_round_robin_node_bt_node
+      - nav2_transform_available_condition_bt_node
+      - nav2_time_expired_condition_bt_node
+      - nav2_path_expiring_timer_condition
+      - nav2_distance_traveled_condition_bt_node
+      - nav2_single_trigger_bt_node
+      - nav2_goal_updated_controller_bt_node
+      - nav2_is_battery_low_condition_bt_node
+      - nav2_navigate_through_poses_action_bt_node
+      - nav2_navigate_to_pose_action_bt_node
+      - nav2_remove_passed_goals_action_bt_node
+      - nav2_planner_selector_bt_node
+      - nav2_controller_selector_bt_node
+      - nav2_goal_checker_selector_bt_node
+      - nav2_controller_cancel_bt_node
+      - nav2_path_longer_on_approach_bt_node
+      - nav2_wait_cancel_bt_node
+      - nav2_spin_cancel_bt_node
+      - nav2_back_up_cancel_bt_node
+      - nav2_assisted_teleop_cancel_bt_node
+      - nav2_drive_on_heading_cancel_bt_node
+      - nav2_is_battery_charging_condition_bt_node
+
+
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 20.0
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    odom_topic: /odometry/filtered
+    progress_checker_plugin: progress_checker
+    goal_checker_plugins: [general_goal_checker]
+    controller_plugins: [FollowPath]
+
+    progress_checker:
+      plugin: nav2_controller::SimpleProgressChecker
+      # A 1200 kg machine takes a while to get moving, and at 1.5 m/s it covers
+      # half a metre in a third of a second, so the default 0.5 m in 10 s is a
+      # generous but valid stuck test.
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+
+    general_goal_checker:
+      stateful: true
+      plugin: nav2_controller::SimpleGoalChecker
+      # Tolerances sized for a vehicle 2.4 m long. Asking it to stop within
+      # 25 cm of a point, as a small indoor robot would, is meaningless here.
+      # 1.5 m, not the 0.5 a small indoor robot uses. This machine is 2.4 m
+      # long and cannot turn inside 5 m; asking it to stop within half a metre
+      # of a point means it overshoots, loops round, overshoots again and
+      # orbits the waypoint forever. Measured: at 0.5 m it circled a waypoint
+      # at about 18 m radius indefinitely.
+      xy_goal_tolerance: 1.5
+      # Deliberately loose. The rover cannot turn on the spot, so insisting on
+      # a final heading makes it circle the goal trying to line up. For
+      # waypoint following the heading on arrival does not matter.
+      yaw_goal_tolerance: 1.57
+
+    FollowPath:
+      # Regulated Pure Pursuit, not DWB. DWB samples velocity commands assuming
+      # the base can take any of them, which for a car-like robot produces
+      # paths it cannot drive.
+      plugin: nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+      # 1.0, not 1.5. The achievable turning radius grows with speed - measured
+      # 4.20 m at 0.6 m/s, 4.64 at 1.0 and 5.44 at 1.5 - so driving slower buys
+      # a tighter turn, which is what converging on a waypoint needs.
+      desired_linear_vel: 1.0
+      # Lookahead scales with the vehicle. Too short and a long machine cuts
+      # corners and oscillates; too long and it ignores the path's detail.
+      # Shortened. A long lookahead makes pure pursuit cut corners and steer
+      # gently; at the previous 5 m the controller commanded a 12 m turning
+      # radius while the rover was capable of 5.4 m, which is exactly why it
+      # never converged.
+      lookahead_dist: 3.0
+      min_lookahead_dist: 2.0
+      max_lookahead_dist: 6.0
+      lookahead_time: 2.0
+      use_velocity_scaled_lookahead_dist: true
+      transform_tolerance: 0.2
+
+      # MEASURED. Slow down for curvature tighter than this. Set from the
+      # rover's real minimum radius, not the geometric one - see the planner
+      # section below.
+      use_regulated_linear_velocity_scaling: true
+      # Slow down for anything tighter than 8 m. Given the radius/speed
+      # relationship above, slowing is what makes the tight turn possible.
+      regulated_linear_scaling_min_radius: 8.0
+      regulated_linear_scaling_min_speed: 0.4
+
+      # THE critical Ackermann setting. True makes the controller stop and
+      # rotate to face the path before starting, which this base physically
+      # cannot do; it would stall on the spot forever.
+      use_rotate_to_heading: false
+      # Matches the planner's REEDS_SHEPP model: a path with reverse segments
+      # is useless if the controller refuses to drive them.
+      allow_reversing: true
+
+      min_approach_linear_velocity: 0.3
+      approach_velocity_scaling_dist: 3.0
+
+      # No obstacle sensors, so there is nothing to collision-check against.
+      use_collision_detection: false
+
+      # Cost regulation needs a populated costmap; without sensors it would
+      # only add cost for nothing.
+      use_cost_regulated_linear_velocity_scaling: false
+
+
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    expected_planner_frequency: 1.0
+    planner_plugins: [GridBased]
+
+    GridBased:
+      # Hybrid-A*, the only stock Nav2 planner that respects a minimum turning
+      # radius. NavFn and Theta* produce shortest paths with corners a car
+      # cannot drive through.
+      plugin: nav2_smac_planner/SmacPlannerHybrid
+      tolerance: 1.0
+      downsample_costmap: false
+      allow_unknown: true
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 5.0
+
+      # MEASURED, and the single most important number here.
+      #
+      # Geometry says wheelbase / tan(max_steer) = 1.91 / tan(0.6) = 2.79 m.
+      # The rover cannot do that. Driven at full steering lock it circles at
+      # 4.20 m at 0.6 m/s, 4.64 m at 1.0 m/s and 5.44 m at 1.5 m/s - tyre slip
+      # widens the circle, and more so the faster it goes. Handing the planner
+      # the geometric figure would have it produce paths the controller cannot
+      # follow, and the failure would look like a controller bug.
+      #
+      # 6.0 is the worst measured case plus margin. Re-measure if the tyre
+      # friction or the mass changes.
+      minimum_turning_radius: 6.0
+
+      # REEDS_SHEPP, which allows reversing, rather than the forward-only DUBIN.
+      # There is a reason, and it was measured: with DUBIN the rover reached the
+      # first waypoint and then orbited the second one indefinitely at 12-14 m.
+      # A forward-only car that overshoots a point has no way back except a full
+      # loop, and every loop puts it in the same bad position again. Reversing
+      # is how a real vehicle recovers from an overshoot, and the planner has to
+      # be allowed to plan it.
+      #
+      # The rover has no rear-facing sensor, so reverse_penalty keeps the
+      # planner preferring forward motion and using reverse only where it
+      # genuinely helps.
+      motion_model_for_search: REEDS_SHEPP
+      angle_quantization_bins: 72
+      analytic_expansion_ratio: 3.5
+      analytic_expansion_max_length: 30.0
+      cost_penalty: 2.0
+      reverse_penalty: 3.0
+      change_penalty: 0.0
+      non_straight_penalty: 1.2
+      retrospective_penalty: 0.015
+      lookup_table_size: 20.0
+      cache_obstacle_heuristic: false
+      smooth_path: true
+
+      smoother:
+        max_iterations: 1000
+        w_smooth: 0.3
+        w_data: 0.2
+        tolerance: 1.0e-10
+        do_refinement: true
+
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: true
+    smoother_plugins: [simple_smoother]
+    simple_smoother:
+      plugin: nav2_smoother::SimpleSmoother
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: true
+
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: true
+    local_costmap_topic: local_costmap/costmap_raw
+    global_costmap_topic: global_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    # Spin is absent on purpose: this base cannot rotate in place, so offering
+    # it as a recovery would hand the behaviour tree an action that never
+    # completes. BackUp and Wait are both things a car can actually do.
+    behavior_plugins: [backup, drive_on_heading, wait]
+    backup:
+      plugin: nav2_behaviors/BackUp
+    drive_on_heading:
+      plugin: nav2_behaviors/DriveOnHeading
+    wait:
+      plugin: nav2_behaviors/Wait
+    local_frame: odom
+    global_frame: map
+    robot_base_frame: base_footprint
+    transform_tolerance: 0.2
+    simulate_ahead_time: 2.0
+
+
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: true
+    loop_rate: 20
+    stop_on_failure: false
+    waypoint_task_executor_plugin: wait_at_waypoint
+    wait_at_waypoint:
+      plugin: nav2_waypoint_follower::WaitAtWaypoint
+      enabled: true
+      waypoint_pause_duration: 2000
+
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: OPEN_LOOP
+    max_velocity: [1.5, 0.0, 0.5]
+    min_velocity: [-1.5, 0.0, -0.5]
+    # A 1200 kg machine cannot change speed instantly, and commanding it to try
+    # just makes the wheels slip. These caps keep the command inside what the
+    # drivetrain can deliver.
+    max_accel: [1.0, 0.0, 1.0]
+    max_decel: [-1.5, 0.0, -1.0]
+    odom_topic: /odometry/filtered
+    odom_duration: 0.1
+    # Lateral velocity is structurally zero on a car-like base.
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+
+
+# ---------------------------------------------------------------------------
+# Costmaps
+#
+# Both are rolling windows with no static map. This is open-field GPS
+# navigation: there is no floor plan to load, and the rover may drive out of
+# any fixed area. A static layer would only get in the way.
+#
+# Neither has an obstacle layer, because the robot has no sensor that could
+# populate one. They are effectively empty grids whose only job is to give the
+# planner somewhere to search and to carry the robot's footprint. Adding a
+# lidar later means adding an obstacle_layer to this list and nothing else.
+# ---------------------------------------------------------------------------
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      # Local costmap lives in odom, which is the frame guaranteed to be
+      # continuous. Putting it in map would let a GPS correction jump the
+      # controller's world sideways mid-manoeuvre.
+      global_frame: odom
+      robot_base_frame: base_footprint
+      rolling_window: true
+      # Sized around the turning radius. A 6 m circle does not fit in the 3 m
+      # window a small indoor robot uses.
+      width: 40
+      height: 40
+      resolution: 0.1
+
+      # The real extent, wheels included, not the chassis box. Front wheels
+      # reach x = +0.955 + 0.27, rear wheels back to -0.955 - 0.40, and the
+      # track plus tyre width gives y = +/-0.875. Rounded outward.
+      footprint: "[[1.3, 0.9], [1.3, -0.9], [-1.4, -0.9], [-1.4, 0.9]]"
+      footprint_padding: 0.1
+
+      plugins: [inflation_layer]
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        cost_scaling_factor: 3.0
+        # Roughly half the vehicle's width beyond the footprint.
+        inflation_radius: 1.5
+      always_send_full_costmap: true
+
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      # Rolling, not fixed, and this is the part that differs most from an
+      # indoor setup. There is no map to bound the world, so the costmap
+      # follows the robot.
+      rolling_window: true
+      # 200 m across at 25 cm. A goal further than 100 m from the rover falls
+      # outside the window and cannot be planned to - fine while waypoints are
+      # taken one at a time, but the number to raise if that ever bites.
+      width: 200
+      height: 200
+      resolution: 0.25
+      track_unknown_space: false
+
+      footprint: "[[1.3, 0.9], [1.3, -0.9], [-1.4, -0.9], [-1.4, 0.9]]"
+      footprint_padding: 0.1
+
+      plugins: [inflation_layer]
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        cost_scaling_factor: 3.0
+        inflation_radius: 1.5
+      always_send_full_costmap: true

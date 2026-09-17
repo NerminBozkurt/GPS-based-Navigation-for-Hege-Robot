@@ -1,0 +1,14 @@
+# Example GPS waypoint mission, laid out around the simulated field's origin
+# (52.466, 12.958). A rough square about 30 m on a side.
+#
+# At this latitude one degree of latitude is about 111 km and one degree of
+# longitude about 68 km, so 0.0001 degrees is roughly 11 m north or 7 m east.
+#
+# Replace with real surveyed coordinates for a field run. Nothing else has to
+# change: the datum comes from the first fix, and these are converted into
+# whatever map frame that produces.
+waypoints:
+  - {latitude: 52.4660000, longitude: 12.9584000}   # ~30 m east
+  - {latitude: 52.4662700, longitude: 12.9584000}   # ~30 m north of that
+  - {latitude: 52.4662700, longitude: 12.9580000}   # ~30 m west
+  - {latitude: 52.4660000, longitude: 12.9580000}   # back to the start
