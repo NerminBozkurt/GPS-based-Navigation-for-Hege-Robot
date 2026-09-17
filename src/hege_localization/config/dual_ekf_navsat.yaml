@@ -33,6 +33,46 @@ ekf_local:
     base_link_frame: base_footprint
     world_frame: odom
 
+    # ---- Q: process noise -------------------------------------------------
+    # How wrong the filter's own motion model is. The model is a plain
+    # constant-velocity rigid body - it knows nothing about Ackermann geometry,
+    # tyre slip or throttle - so every prediction step is a little wrong, and
+    # this matrix says by how much. It is added to the state covariance on each
+    # predict, scaled by dt, which is how uncertainty grows while a sensor is
+    # silent.
+    #
+    # Larger value  -> trust the model less, follow the sensors more closely.
+    #                  More responsive, noisier.
+    # Smaller value -> trust the model more. Smoother, slower to react.
+    #
+    # These are robot_localization's own defaults, written out so the knob is
+    # visible rather than hidden in the library. Changing a number here changes
+    # behaviour; the values as they stand are what produced the ~0.08 m result.
+    # Only the diagonal is used in practice. z/roll/pitch rows are inert
+    # because two_d_mode is on.
+    process_noise_covariance: [
+      0.05  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # x
+      0.0   , 0.05  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # y
+      0.0   , 0.0   , 0.06  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # z
+      0.0   , 0.0   , 0.0   , 0.03  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # roll
+      0.0   , 0.0   , 0.0   , 0.0   , 0.03  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # pitch
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.06  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # yaw
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.025 , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # vx
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.025 , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # vy
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.04  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # vz
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.01  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # vroll
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.01  , 0.0   , 0.0   , 0.0   , 0.0,   # vpitch
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.02  , 0.0   , 0.0   , 0.0,   # vyaw
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.01  , 0.0   , 0.0,   # ax
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.01  , 0.0,   # ay
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.015   # az
+    ]
+
+    # Scales Q with the current velocity, so the pose covariance stops growing
+    # while the rover is parked. Off for now - worth trying if the estimate is
+    # seen to wander at standstill.
+    use_dynamic_process_noise_covariance: false
+
     # Wheel odometry: forward speed only. Its absolute pose is exactly the
     # thing that drifts, so we take the velocity and let the filter integrate.
     odom0: /ackermann_steering_controller/odometry
@@ -78,6 +118,43 @@ ekf_global:
     # The only structural difference from ekf_local.
     world_frame: map
 
+    # ---- Q: process noise -------------------------------------------------
+    # How wrong the filter's own motion model is. The model is a plain
+    # constant-velocity rigid body - it knows nothing about Ackermann geometry,
+    # tyre slip or throttle - so every prediction step is a little wrong, and
+    # this matrix says by how much. It is added to the state covariance on each
+    # predict, scaled by dt, which is how uncertainty grows while a sensor is
+    # silent.
+    #
+    # Larger value  -> trust the model less, follow the sensors more closely.
+    #                  More responsive, noisier.
+    # Smaller value -> trust the model more. Smoother, slower to react.
+    #
+    # Kept identical to ekf_local on purpose: the two filters should differ
+    # only in which measurements they receive, never in how they predict.
+    process_noise_covariance: [
+      0.05  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # x
+      0.0   , 0.05  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # y
+      0.0   , 0.0   , 0.06  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # z
+      0.0   , 0.0   , 0.0   , 0.03  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # roll
+      0.0   , 0.0   , 0.0   , 0.0   , 0.03  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # pitch
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.06  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # yaw
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.025 , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # vx
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.025 , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # vy
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.04  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # vz
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.01  , 0.0   , 0.0   , 0.0   , 0.0   , 0.0,   # vroll
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.01  , 0.0   , 0.0   , 0.0   , 0.0,   # vpitch
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.02  , 0.0   , 0.0   , 0.0,   # vyaw
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.01  , 0.0   , 0.0,   # ax
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.01  , 0.0,   # ay
+      0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.0   , 0.015   # az
+    ]
+
+    # Scales Q with the current velocity, so the pose covariance stops growing
+    # while the rover is parked. Off for now - worth trying if the estimate is
+    # seen to wander at standstill.
+    use_dynamic_process_noise_covariance: false
+
     odom0: /ackermann_steering_controller/odometry
     odom0_config: [false, false, false,
                    false, false, false,
@@ -114,6 +191,39 @@ ekf_global:
     imu0_differential: false
     imu0_relative: false
     imu0_remove_gravitational_acceleration: true
+
+
+    # ---- knobs for the move to real hardware ------------------------------
+    # All commented out deliberately: each one changes behaviour, and none of
+    # them is needed while every sensor is synthetic and perfectly punctual.
+    # They are written down here because they are exactly what a real GPS and a
+    # real radio link will demand.
+    #
+    # Outlier gating. A measurement whose Mahalanobis distance from the
+    # prediction exceeds the threshold is thrown away. This is the defence
+    # against an RTK fix dropping to float and jumping half a metre - without
+    # it the filter swallows the jump. The number is in standard deviations,
+    # so it adapts as the covariance changes rather than being a fixed metre
+    # value. Tune against the worst jump seen in a real log.
+    #odom1_pose_rejection_threshold: 5.0
+    #imu0_pose_rejection_threshold: 3.0
+    #
+    # Late measurements. Gazebo delivers a fix the instant it is generated; a
+    # real receiver needs 100-200 ms to compute one, and the radio adds more.
+    # With these on, the filter keeps a short history, rewinds when a delayed
+    # measurement arrives, and replays forward. Without them a late fix is
+    # either dropped or applied at the wrong instant.
+    #smooth_lagged_data: true
+    #history_length: 0.5
+    #
+    # Publish an estimate extrapolated to the current time rather than to the
+    # timestamp of the last measurement. Nav2's controller wants to know where
+    # the rover is now, not where it was when the last fix landed.
+    #predict_to_current_time: true
+    #
+    # How long to wait for a TF lookup before giving up. The default of 0 is
+    # fine on one machine; across the Jetson-to-Pixhawk link it is not.
+    #transform_timeout: 0.05
 
 
 navsat_transform:
