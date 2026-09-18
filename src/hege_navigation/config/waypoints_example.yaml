@@ -7,6 +7,12 @@
 # Replace with real surveyed coordinates for a field run. Nothing else has to
 # change: the datum comes from the first fix, and these are converted into
 # whatever map frame that produces.
+#
+# Each entry may also carry `heading`: the compass bearing in degrees to arrive
+# on, 0 north and 90 east, matching the latitude and longitude beside it. Left
+# out, the waypoint takes the bearing of the leg into it - the heading the
+# machine would arrive on anyway - which is how "any heading is fine" is said.
+# See waypoints_short_run.yaml for what setting one actually costs.
 waypoints:
   - {latitude: 52.4660000, longitude: 12.9584000}   # ~30 m east
   - {latitude: 52.4662700, longitude: 12.9584000}   # ~30 m north of that

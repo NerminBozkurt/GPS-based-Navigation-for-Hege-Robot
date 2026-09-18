@@ -120,9 +120,21 @@ controller_server:
       # orbits the waypoint forever. Measured: at 0.5 m it circled a waypoint
       # at about 18 m radius indefinitely.
       xy_goal_tolerance: 1.5
-      # Deliberately loose. The rover cannot turn on the spot, so insisting on
-      # a final heading makes it circle the goal trying to line up. For
-      # waypoint following the heading on arrival does not matter.
+      # Deliberately loose - but this is slack around an agreement, not
+      # permission to ignore the heading.
+      #
+      # Every waypoint carries one whether anyone sets one or not: an untouched
+      # quaternion is yaw=0, "arrive facing east", not "unspecified", and
+      # Hybrid-A* plans to a POSE. So gps_waypoint_follower.py gives each
+      # waypoint either the bearing asked for in the waypoints file, or by
+      # default the bearing of the leg into it - the heading the machine
+      # naturally arrives on, which is how "any heading is fine here" is said.
+      #
+      # This tolerance is the room around that. Loose because the machine
+      # cannot turn on the spot and so cannot creep round to line up at a goal
+      # it has overshot; tightening it demands precision it has no way to
+      # deliver. Loosening it past pi switches heading checking off altogether,
+      # which also discards any heading deliberately set in the file.
       yaw_goal_tolerance: 1.57
 
     FollowPath:

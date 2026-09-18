@@ -4,11 +4,12 @@
     ros2 run hege_navigation gps_waypoint_follower.py --ros-args \
         -p waypoints_file:=/path/to/waypoints.yaml
 
-The file is a list of latitude/longitude pairs:
+The file is a list of latitude/longitude pairs, each optionally carrying the
+heading to arrive on:
 
     waypoints:
       - {latitude: 52.46612, longitude: 12.95830}
-      - {latitude: 52.46620, longitude: 12.95845}
+      - {latitude: 52.46620, longitude: 12.95845, heading: 270}
 
 Humble's nav2_waypoint_follower only offers FollowWaypoints, which takes poses
 in the map frame; the FollowGPSWaypoints action arrived in a later release. So
@@ -18,9 +19,28 @@ whatever datum the run happens to have. That matters here: the datum is taken
 from the first GPS fix rather than surveyed, so map coordinates differ between
 runs while the latitude and longitude in the file stay valid forever.
 
-Headings are not specified. The rover is car-like and arrives facing whatever
-direction the path brought it in on, which is why the goal checker's yaw
-tolerance is deliberately loose.
+HEADINGS
+
+`heading` is a COMPASS BEARING in degrees - 0 north, 90 east, 180 south,
+270 west - to match the latitude and longitude it sits next to. Everything
+downstream is ENU yaw in radians, where 0 is EAST and angles grow
+anticlockwise, so the two are not the same number and must not be confused:
+bearing 0 is yaw +90. bearing_to_yaw() below is the only place that conversion
+happens.
+
+Leave `heading` out and the waypoint is given the bearing of the leg INTO it -
+the direction it is approached from, taken from the waypoint before it, or for
+the first waypoint from where the machine is standing when the mission starts.
+That is the heading the machine would naturally arrive on anyway, so the goal
+checker's yaw test passes without constraining anything. It is how "I do not
+care which way it faces here" gets said.
+
+Saying nothing at all is NOT how that gets said, and this is the trap. An
+untouched geometry_msgs/Quaternion is not "unspecified" - there is no such
+value - it is yaw=0, "arrive facing east". The planner plans to a POSE, so it
+takes that literally: on a route that turns north, it plans a loop so the
+machine can come back round and cross the point heading east, and the excess
+manoeuvring looks like a controller fault. Hence the derived default above.
 
 Each waypoint is also drawn twice for the benefit of whoever is watching: as a
 marker on /gps_waypoints for RViz, and as a tall thin post spawned into the
@@ -34,6 +54,7 @@ entities per second. RViz draws /plan natively and is the right tool for it.
 
 import math
 import sys
+import time
 
 import rclpy
 import yaml
@@ -41,6 +62,7 @@ from geographic_msgs.msg import GeoPoint
 from geometry_msgs.msg import PoseStamped
 from gazebo_msgs.srv import DeleteEntity, SpawnEntity
 from nav2_msgs.action import FollowWaypoints
+from nav_msgs.msg import Odometry
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile
@@ -123,8 +145,111 @@ class GpsWaypointFollower(Node):
         # Altitude is dropped on purpose: both EKFs run in two_d_mode and the
         # costmaps are flat, so a z from the fix would only be noise.
         pose.pose.position.z = 0.0
+        # Placeholder. set_headings() overwrites every one of these, and it has
+        # to: left alone this asks for an eastward arrival at every waypoint.
         pose.pose.orientation.w = 1.0
         return pose
+
+    # --------------------------------------------------------------- headings
+    @staticmethod
+    def bearing_to_yaw(bearing_deg):
+        """Compass bearing in degrees -> ENU yaw in radians.
+
+        Bearing counts clockwise from north, yaw anticlockwise from east, so
+        the two run in opposite directions and are offset by a quarter turn:
+        yaw = 90 - bearing. Normalised through atan2 to [-pi, pi], which is
+        the range atan2 produces for the derived headings too, so a heading
+        from the file and a heading from the route are directly comparable.
+        """
+        return math.atan2(math.sin(math.radians(90.0 - bearing_deg)),
+                          math.cos(math.radians(90.0 - bearing_deg)))
+
+    @staticmethod
+    def yaw_to_bearing(yaw):
+        """ENU yaw in radians -> compass bearing in degrees, [0, 360).
+
+        For display only - nothing steers by this. Rounded to a tenth of a
+        degree before the wrap, and that order matters: a waypoint a hair west
+        of north is 359.9994, which every sensible print format renders as
+        "360". Rounding first turns it into 360.0, and the second wrap turns
+        that into the 0 it should have read as all along.
+        """
+        bearing = math.degrees(math.atan2(math.cos(yaw), math.sin(yaw)))
+        return round(bearing % 360.0, 1) % 360.0
+
+    @staticmethod
+    def set_yaw(pose, yaw):
+        pose.pose.orientation.x = 0.0
+        pose.pose.orientation.y = 0.0
+        pose.pose.orientation.z = math.sin(yaw / 2.0)
+        pose.pose.orientation.w = math.cos(yaw / 2.0)
+
+    def start_pose(self):
+        """Where the machine is standing now, or None if nothing answers.
+
+        Only the first waypoint needs it, and only when that waypoint has no
+        heading of its own: every later one is approached from the waypoint
+        before it, but the first is approached from wherever the run begins.
+        """
+        got = []
+        sub = self.create_subscription(
+            Odometry, '/odometry/filtered_map', got.append, 1)
+        try:
+            deadline = time.time() + 5.0
+            while not got and time.time() < deadline:
+                rclpy.spin_once(self, timeout_sec=0.2)
+        finally:
+            self.destroy_subscription(sub)
+        return got[0].pose.pose.position if got else None
+
+    def set_headings(self, points, poses, start=None):
+        """Give every waypoint its arrival heading, in place.
+
+        A waypoint with a `heading` in the file gets exactly that, converted
+        from compass bearing to ENU yaw. One without gets the bearing of the
+        leg into it, which is the heading it would arrive on anyway.
+
+        Returns a list of 'file' / 'route' / 'default' saying where each
+        heading came from, so the log can show it rather than leaving the
+        reader to guess which waypoints are actually constrained.
+        """
+        sources = []
+        for i, (point, pose) in enumerate(zip(points, poses)):
+            given = point.get('heading')
+            if given is not None:
+                self.set_yaw(pose, self.bearing_to_yaw(float(given)))
+                sources.append('file')
+                continue
+
+            previous = start if i == 0 else poses[i - 1].pose.position
+            if previous is None:
+                # First waypoint, no heading in the file, and no odometry to
+                # take an approach direction from. Nothing here is a good
+                # answer; yaw=0 (east) at least matches what the file would
+                # have produced before headings existed.
+                self.get_logger().warn(
+                    'waypoint 1 has no heading and /odometry/filtered_map did '
+                    'not answer, so it is left facing east - give it a '
+                    'heading in the file to be sure of it')
+                sources.append('default')
+                continue
+
+            dx = pose.pose.position.x - previous.x
+            dy = pose.pose.position.y - previous.y
+            if math.hypot(dx, dy) < 1e-3:
+                # Nothing to take a bearing from: atan2(0, 0) is 0, which would
+                # quietly mean east. Keep whatever the point before settled on.
+                self.get_logger().warn(
+                    'waypoint %d sits on top of what comes before it; heading '
+                    'kept from the previous one' % (i + 1))
+                if i > 0:
+                    pose.pose.orientation = poses[i - 1].pose.orientation
+                sources.append(sources[i - 1] if i > 0 else 'default')
+                continue
+
+            self.set_yaw(pose, math.atan2(dy, dx))
+            sources.append('route')
+        return sources
 
     # ---------------------------------------------------------------- drawing
     def draw_rviz(self, poses):
@@ -212,14 +337,25 @@ class GpsWaypointFollower(Node):
                 'only offers the service once it has a datum.')
             return 1
 
-        poses = []
-        for i, point in enumerate(points):
-            pose = self.to_map(point)
-            poses.append(pose)
+        poses = [self.to_map(point) for point in points]
+
+        # The start pose is only fetched when something actually needs it: a
+        # first waypoint with no heading of its own. Asking for it otherwise
+        # would spend five seconds waiting on a topic nobody is reading.
+        start = None
+        if points and points[0].get('heading') is None:
+            start = self.start_pose()
+        sources = self.set_headings(points, poses, start=start)
+
+        for i, (point, pose, source) in enumerate(zip(points, poses, sources)):
+            yaw = 2.0 * math.atan2(pose.pose.orientation.z,
+                                   pose.pose.orientation.w)
             self.get_logger().info(
-                '  %d: %.7f, %.7f  ->  map (%.2f, %.2f)'
+                '  %d: %.7f, %.7f  ->  map (%.2f, %.2f)  arrive on bearing '
+                '%3.0f deg (%s)'
                 % (i + 1, point['latitude'], point['longitude'],
-                   pose.pose.position.x, pose.pose.position.y))
+                   pose.pose.position.x, pose.pose.position.y,
+                   self.yaw_to_bearing(yaw), source))
 
         self.draw_rviz(poses)
         if self.get_parameter('gazebo_posts').value:

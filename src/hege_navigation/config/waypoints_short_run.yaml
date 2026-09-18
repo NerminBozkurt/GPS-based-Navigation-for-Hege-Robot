@@ -1,0 +1,39 @@
+# A short three-point run: 10 m out, 10 m across, 10 m back along the far side.
+# Enough to watch a whole mission end to end in a couple of minutes without
+# waiting out a full field pattern.
+#
+# Ten metres is about as tight as the spacing sensibly goes. Two limits set the
+# floor: the goal checker accepts anything inside 1.5 m, so points closer than a
+# few metres get collapsed into one arrival, and the planner is held to a 6 m
+# turning radius, so a corner needs room to come round. At 10 m both fit with
+# margin to spare.
+#
+# Latitude/longitude rather than map coordinates, because the datum comes from
+# the first GPS fix and shifts by centimetres between runs. Produced by feeding
+# the map points in the comments through /toLL.
+waypoints:
+  - {latitude: 52.4660002, longitude: 12.9581474}   # map (10,  0)
+  - {latitude: 52.4660901, longitude: 12.9581474}   # map (10, 10)
+  - {latitude: 52.4660901, longitude: 12.9580002}   # map ( 0, 10)
+
+# Each waypoint may also carry `heading`: the compass bearing, in degrees, to
+# arrive on. 0 north, 90 east, 180 south, 270 west - the same convention as the
+# latitude and longitude beside it, NOT the ENU yaw the rest of the stack uses
+# internally.
+#
+# Left out, as it is above, the waypoint is given the bearing of the leg into
+# it - the direction it is approached from, which is the heading the machine
+# would arrive on anyway. That is how "any heading is fine here" is said; the
+# goal checker's yaw test then passes without constraining the approach.
+#
+# Setting one genuinely constrains it, and on this machine that is expensive:
+# it cannot turn on the spot, so a demanded heading that disagrees with the
+# approach has to be bought with a wide arc before the waypoint, at the 6 m
+# minimum turning radius in nav2_params.yaml. On 10 m legs there is not much
+# room for that. Worth it where the heading is the point - entering a row,
+# lining up on an implement - and not otherwise.
+#
+# The derived bearings for the route above are 90, 0, 270. To force the last
+# one to arrive facing south-west instead:
+#
+#   - {latitude: 52.4660901, longitude: 12.9580002, heading: 225}
