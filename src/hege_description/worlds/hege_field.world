@@ -25,7 +25,44 @@
     </spherical_coordinates>
 
     <include><uri>model://sun</uri></include>
-    <include><uri>model://ground_plane</uri></include>
+    
+    <!-- Zróżnicowany, wyboisty teren rolniczy -->
+    <model name="bumpy_field">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <heightmap>
+              <uri>file:///workspace/src/hege_description/worlds/field_heightmap.pgm</uri>
+              <size>60 60 0.4</size>
+              <pos>0 0 -0.6</pos>
+            </heightmap>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.6</mu>
+                <mu2>0.6</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <heightmap>
+              <texture>
+                <diffuse>file://media/materials/textures/dirt_diffusespecular.png</diffuse>
+                <normal>file://media/materials/textures/flat_normal.png</normal>
+                <size>3</size>
+              </texture>
+              <uri>file:///workspace/src/hege_description/worlds/field_heightmap.pgm</uri>
+              <size>60 60 0.4</size>
+              <pos>0 0 -0.6</pos>
+            </heightmap>
+          </geometry>
+        </visual>
+      </link>
+    </model>
 
     <physics name="default_physics" default="true" type="ode">
       <max_step_size>0.001</max_step_size>

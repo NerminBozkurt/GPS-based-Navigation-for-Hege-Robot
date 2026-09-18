@@ -60,7 +60,7 @@ def generate_launch_description():
                              'wait_for_datum': use_datum}],
         remappings=[
             ('imu', '/imu/data'),
-            ('gps/fix', '/gps/fix'),
+            ('gps/fix', '/gps/fix_fixed'),
             ('odometry/filtered', '/odometry/filtered_map'),
             ('odometry/gps', '/odometry/gps'),
         ],
@@ -78,5 +78,11 @@ def generate_launch_description():
                         'comparable with each other.'),
         ekf_local,
         ekf_global,
+        Node(
+            package='hege_localization',
+            executable='gps_fixer.py',
+            name='gps_fixer',
+            output='screen'
+        ),
         navsat_transform,
     ])

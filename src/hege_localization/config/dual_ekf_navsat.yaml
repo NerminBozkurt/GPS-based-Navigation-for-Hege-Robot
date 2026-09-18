@@ -269,6 +269,13 @@ navsat_transform:
     #     blindly is the classic way to end up 90 degrees off course.
     # Both need revisiting for the real robot, where heading comes from the
     # PX4 compass.
+    # Opcjonalnie podmień na /gps/fix_fixed
+    # (Tymczasowe obejście błędu z 0,0)
+    # 
+    # Subskrybowane topic:
+    #   imu: /imu/data
+    #   gps: /gps/fix_fixed
+    #   odometry: /odometry/filtered_local
     magnetic_declination_radians: 0.0
     yaw_offset: 0.0
 

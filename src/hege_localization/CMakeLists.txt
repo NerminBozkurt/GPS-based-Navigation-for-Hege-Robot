@@ -9,7 +9,7 @@ install(
 )
 
 install(
-  PROGRAMS scripts/localization_monitor.py
+  PROGRAMS scripts/localization_monitor.py scripts/gps_fixer.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
