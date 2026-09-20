@@ -206,8 +206,7 @@ class GpsWaypointNavigator(Node):
         ]
         bales = [b.to_dict() for b in detected_bales]
 
-        entry_d = 3.2   # Odległość punktu wjazdowego (początek zielonej strzałki)
-        exit_d = 1.6    # Odległość czystego wyjazdu na wprost za belę
+        entry_d = 3.5   # Odległość punktu wjazdowego (początek zielonej strzałki najazdu)
         waypoints = []
         wp_labels = []
 
@@ -229,14 +228,7 @@ class GpsWaypointNavigator(Node):
             wp_labels.append(f"Pkt {wp_num}: {b['name']} (Zbiór)")
             wp_num += 1
 
-            # 3. Punkt czystego wyjazdu na wprost za belę (eliminuje skręcanie kół w obrysie beli)
-            exit_x = b['x'] + exit_d * cos_y
-            exit_y = b['y'] + exit_d * sin_y
-            waypoints.append(self.create_pose(exit_x, exit_y, yaw))
-            wp_labels.append(f"Pkt {wp_num}: {b['name']} (Wyjazd na wprost)")
-            wp_num += 1
-
-        # 4. Meta / Baza
+        # 3. Meta / Baza
         waypoints.append(self.create_pose(0.0, 0.0, -1.0))
         wp_labels.append(f"Pkt {wp_num}: BAZA / META")
 
@@ -321,7 +313,7 @@ class GpsWaypointNavigator(Node):
             arrow.type = Marker.ARROW
             arrow.action = Marker.ADD
             arrow.points = [
-                Point(x=bx - 3.2 * cos_y, y=by - 3.2 * sin_y, z=0.15),
+                Point(x=bx - 3.5 * cos_y, y=by - 3.5 * sin_y, z=0.15),
                 Point(x=bx - 0.6 * cos_y, y=by - 0.6 * sin_y, z=0.15)
             ]
             arrow.scale.x = 0.45  # grubość trzonu
@@ -376,9 +368,6 @@ class GpsWaypointNavigator(Node):
             elif "Zbiór" in label_text:
                 pin_color = ColorRGBA(r=1.0, g=0.75, b=0.1, a=0.85)     # złoty (bela)
                 sphere_color = ColorRGBA(r=1.0, g=0.45, b=0.0, a=0.95)  # pomarańczowy
-            elif "Wyjazd" in label_text:
-                pin_color = ColorRGBA(r=0.6, g=0.2, b=1.0, a=0.85)      # fioletowy (wyjazd na wprost)
-                sphere_color = ColorRGBA(r=0.8, g=0.3, b=1.0, a=0.95)   # jasny fiolet
             else:
                 pin_color = ColorRGBA(r=0.2, g=0.8, b=1.0, a=0.85)      # błękitny (meta)
                 sphere_color = ColorRGBA(r=0.0, g=0.5, b=1.0, a=0.95)   # niebieski
