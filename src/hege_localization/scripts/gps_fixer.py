@@ -11,8 +11,12 @@ class GPSFixer(Node):
         self.get_logger().info('GPS Fixer started!')
 
     def cb(self, msg):
+        # Gazebo Classic spherical coordinates omits cos(lat) when projecting X (East) meters to longitude degrees.
+        # We scale the longitude delta by 1 / cos(lat) so UTM/map X matches Gazebo world X exactly 1:1.
+        import math
+        cos_lat = math.cos(math.radians(52.466))
         msg.latitude += 52.466
-        msg.longitude += 12.958
+        msg.longitude = (msg.longitude / cos_lat) + 12.958
         self.pub.publish(msg)
 
 def main():

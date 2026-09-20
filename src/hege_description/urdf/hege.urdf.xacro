@@ -27,7 +27,7 @@
          2.0   single-point solution
        The upper two are the Goal 2 robustness cases: raise this, run the same
        route, and read the error off the localization monitor. -->
-  <xacro:property name="gps_noise" value="2.0"/>
+  <xacro:property name="gps_noise" value="0.02"/>
 
   <!-- Gyro and accelerometer bias. A real MEMS IMU's dominant error is not
        white noise but a bias drawn at startup that then wanders, and that is
@@ -146,10 +146,9 @@
        the wheels sink into the ground plane and jitter. -->
   <xacro:macro name="wheel_surface" params="link">
     <gazebo reference="${link}">
-      <!-- Friction. Tractor tyres on soil, and this is the knob behind the
-           rover turning less sharply than commanded. -->
-      <mu1>1.0</mu1>
-      <mu2>1.0</mu2>
+      <!-- Friction. High traction tractor tyres on soil to eliminate lateral slip -->
+      <mu1>20.0</mu1>
+      <mu2>20.0</mu2>
       <!-- Contact stiffness and damping, scaled with the vehicle. At the
            1e6 that suited a 15 kg model, 1200 kg pushes the wheels into the
            ground far enough to change the effective radius and therefore the

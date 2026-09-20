@@ -12,6 +12,7 @@ install(DIRECTORY
   config
   launch
   scripts
+  rviz
   DESTINATION share/${PROJECT_NAME}
 )
 
