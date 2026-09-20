@@ -22,10 +22,11 @@ controller_server:
   ros__parameters:
     use_sim_time: True
     controller_frequency: 10.0
+    odom_topic: "/odometry/filtered"
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
-    failure_tolerance: 0.3
+    failure_tolerance: 2.0
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
@@ -33,8 +34,8 @@ controller_server:
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 1.5           # Płynna, realistyczna prędkość robocza traktora (~5.4 km/h)
-      lookahead_dist: 3.2               # Płynne podążanie za wyznaczoną ścieżką
-      min_lookahead_dist: 2.2           # Klucz: ZAWSZE większy od rozstawu osi (1.91m) - brak drgań kół
+      lookahead_dist: 3.0               # Płynne podążanie za wyznaczoną ścieżką
+      min_lookahead_dist: 2.0           # Dopasowany do rozstawu osi traktora (1.91m)
       max_lookahead_dist: 5.0
       lookahead_time: 1.8
       rotate_to_heading_angular_vel: 0.0
@@ -43,17 +44,17 @@ controller_server:
       min_approach_linear_velocity: 0.6
       approach_velocity_scaling_dist: 2.0
       use_collision_detection: false
-      allow_reversing: true             # Zezwolenie na cofanie, gdy planner tego wymaga
+      allow_reversing: false            # WYŁĄCZONE: Traktor porusza się wyłącznie do przodu ze skręconymi kołami
       use_regulated_linear_velocity_scaling: true
       use_cost_regulated_linear_velocity_scaling: false
-      regulated_linear_velocity_scaling_min_radius: 4.0
+      regulated_linear_velocity_scaling_min_radius: 3.5
       regulated_linear_velocity_scaling_min_speed: 0.8  # Płynne zwolnienie na łuku, aby uniknąć uślizgu kół
       use_rotate_to_heading: false      # Brak obrotu w miejscu dla Ackermanna
 
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.5            # Precyzyjny najazd na belę przed zmianą punktu (50 cm)
+      xy_goal_tolerance: 0.6            # Płynne zaliczenie punktu w biegu bez zatrzymywania
       yaw_goal_tolerance: 6.28          # Kąt jest w 100% wymuszony prostoliniowym korytarzem najazdu
 
     progress_checker:
