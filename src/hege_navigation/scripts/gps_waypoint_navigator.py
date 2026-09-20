@@ -24,7 +24,7 @@ from sensor_msgs.msg import NavSatFix
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 from builtin_interfaces.msg import Duration
-from gazebo_msgs.srv import SpawnEntity, DeleteEntity
+from gazebo_msgs.srv import SpawnEntity, DeleteEntity, SetEntityState
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 
 
@@ -50,6 +50,41 @@ def euler_to_quaternion(roll=0.0, pitch=0.0, yaw=0.0):
     return (qx, qy, qz, qw)
 
 
+class BaleDetection:
+    """Reprezentacja leżącej beli siana wykrytej przez kamerę.
+    
+    Kamera dostarcza:
+    - (center_x, center_y): współrzędne środka leżącej beli
+    - (normal_x, normal_y): wektor normalny podstawy (płaskiej części) leżącej beli
+    
+    Na tej podstawie wyznaczany jest wektor i kąt najazdu na płaską część beli.
+    """
+
+    def __init__(self, name: str, center_x: float, center_y: float, normal_x: float, normal_y: float):
+        self.name = name
+        self.x = float(center_x)
+        self.y = float(center_y)
+        norm = math.hypot(normal_x, normal_y)
+        if norm > 1e-6:
+            self.normal_x = float(normal_x) / norm
+            self.normal_y = float(normal_y) / norm
+        else:
+            self.normal_x = 1.0
+            self.normal_y = 0.0
+        # Kąt najazdu wzdłuż wektora podstawy płaskiej części beli:
+        self.yaw = math.atan2(self.normal_y, self.normal_x)
+
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'x': self.x,
+            'y': self.y,
+            'yaw': self.yaw,
+            'normal_x': self.normal_x,
+            'normal_y': self.normal_y
+        }
+
+
 class GpsWaypointNavigator(Node):
 
     def __init__(self):
@@ -62,6 +97,7 @@ class GpsWaypointNavigator(Node):
         self._follow_client = ActionClient(self, FollowWaypoints, '/follow_waypoints')
         self._spawn_client = self.create_client(SpawnEntity, '/spawn_entity')
         self._delete_client = self.create_client(DeleteEntity, '/delete_entity')
+        self._set_state_client = self.create_client(SetEntityState, '/set_entity_state')
         self._start_gps = None
         self._start_map_pose = None
         self._total_waypoints = 0
@@ -160,12 +196,15 @@ class GpsWaypointNavigator(Node):
         # 2. Środek beli (0.0m) - zbiór na wprost
         # 3. Czysty wyjazd (+1.6m) - opuszczenie beli na wprost, brak skręcania w obrysie beli
 
-        bales = [
-            {'name': 'BELA 1', 'x': 16.0, 'y': -4.0, 'yaw': -0.15},
-            {'name': 'BELA 2', 'x': 28.0, 'y': 8.0,  'yaw': 0.75},
-            {'name': 'BELA 3', 'x': 14.0, 'y': 22.0, 'yaw': 2.35},
-            {'name': 'BELA 4', 'x': -2.0, 'y': 10.0, 'yaw': -2.55},
+        # Dane wejściowe w formacie detekcji z kamery:
+        # Kamera dostarcza współrzędne środka beli oraz wektor normalny podstawy leżącej beli (płaskiej części).
+        detected_bales = [
+            BaleDetection('BELA 1', center_x=16.0, center_y=-4.0, normal_x=math.cos(-0.15), normal_y=math.sin(-0.15)),
+            BaleDetection('BELA 2', center_x=28.0, center_y=8.0,  normal_x=math.cos(0.75),  normal_y=math.sin(0.75)),
+            BaleDetection('BELA 3', center_x=14.0, center_y=22.0, normal_x=math.cos(2.35),  normal_y=math.sin(2.35)),
+            BaleDetection('BELA 4', center_x=-2.0, center_y=10.0, normal_x=math.cos(-2.55), normal_y=math.sin(-2.55)),
         ]
+        bales = [b.to_dict() for b in detected_bales]
 
         entry_d = 3.2   # Odległość punktu wjazdowego (początek zielonej strzałki)
         exit_d = 1.6    # Odległość czystego wyjazdu na wprost za belę
@@ -403,13 +442,32 @@ class GpsWaypointNavigator(Node):
         self.get_logger().info('📍 Bele, zielone strzałki, pinezki i ścieżka opublikowane w RViz!')
 
     def _spawn_gazebo_markers(self, bales: list):
-        """Upewnia się, że leżące bele i zielone strzałki są w Gazebo."""
-        if not self._spawn_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('ℹ️  Używam modeli predefiniowanych w pliku hege_field.world.')
-            return
-
+        """Upewnia się, że leżące bele i zielone strzałki są w Gazebo na zadanych pozycjach."""
         for i, b in enumerate(bales):
+            name = f'hay_bale_{i+1}'
             yaw = b['yaw']
+            qx, qy, qz, qw = euler_to_quaternion(0.0, 0.0, yaw)
+
+            # 1. Próba aktualizacji pozycji istniejącego modelu za pomocą /set_entity_state
+            if self._set_state_client.service_is_ready():
+                set_req = SetEntityState.Request()
+                set_req.state.name = name
+                set_req.state.pose.position.x = float(b['x'])
+                set_req.state.pose.position.y = float(b['y'])
+                set_req.state.pose.position.z = GROUND_Z
+                set_req.state.pose.orientation.x = qx
+                set_req.state.pose.orientation.y = qy
+                set_req.state.pose.orientation.z = qz
+                set_req.state.pose.orientation.w = qw
+                set_req.state.reference_frame = 'world'
+                fut = self._set_state_client.call_async(set_req)
+                rclpy.spin_until_future_complete(self, fut, timeout_sec=0.5)
+                if fut.result() and fut.result().success:
+                    continue
+
+            # 2. Jeśli model nie istnieje, spawnujemy go przez /spawn_entity
+            if not self._spawn_client.wait_for_service(timeout_sec=0.5):
+                continue
 
             sdf = f"""<?xml version='1.0'?>
             <sdf version='1.6'>
@@ -461,7 +519,6 @@ class GpsWaypointNavigator(Node):
             req.initial_pose.position.x = b['x']
             req.initial_pose.position.y = b['y']
             req.initial_pose.position.z = GROUND_Z
-            qx, qy, qz, qw = euler_to_quaternion(0.0, 0.0, yaw)
             req.initial_pose.orientation.x = qx
             req.initial_pose.orientation.y = qy
             req.initial_pose.orientation.z = qz
@@ -470,7 +527,7 @@ class GpsWaypointNavigator(Node):
             future = self._spawn_client.call_async(req)
             rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
             
-        self.get_logger().info('🌾 Leżące bele i zielone strzałki najazdu aktywne w Gazebo!')
+        self.get_logger().info('🌾 Leżące bele i zielone strzałki najazdu zsynchronizowane w Gazebo!')
 
     def _feedback_callback(self, feedback_msg):
         current = feedback_msg.feedback.current_waypoint + 1
