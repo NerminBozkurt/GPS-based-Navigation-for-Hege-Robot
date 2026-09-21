@@ -1,0 +1,38 @@
+# Configuration parameters for hege_px4_bridge
+
+hege_px4_bridge:
+  ros__parameters:
+    # Setpoint and heartbeat publishing frequency (PX4 requires >= 2-10 Hz, 20 Hz recommended)
+    heartbeat_rate: 20.0
+
+    # Safety Watchdog timeout in seconds.
+    # If no /cmd_vel message is received within this duration, the bridge commands zero velocity.
+    cmd_vel_timeout: 0.4
+
+    # Speed and angular velocity limits for the physical tractor
+    max_linear_velocity: 1.2      # m/s (~4.3 km/h)
+    min_linear_velocity: -0.5     # m/s (reverse)
+    max_angular_velocity: 0.6     # rad/s (~34 deg/s)
+
+    # Physical tractor geometry
+    wheelbase: 1.9                # meters
+
+    # Frame IDs (ROS standard FLU/ENU)
+    odom_frame_id: "odom"
+    base_frame_id: "base_footprint"
+    map_frame_id: "map"
+
+    # TF publishing
+    # Set to true if running standalone without robot_localization EKF
+    publish_odom_tf: true
+
+    # Telemetry republishing
+    # When true, /fmu/out/vehicle_odometry is converted directly to /odometry/filtered
+    use_px4_odometry_as_fused: true
+
+    # Force z, roll, pitch to zero for 2D ground rover navigation
+    two_d_mode: true
+
+    # Safety: do not automatically arm on node startup; require manual trigger or service call
+    enable_auto_arm: false
+    enable_auto_offboard: false
