@@ -86,7 +86,7 @@
        matters for rollover behaviour on slopes. -->
   <xacro:property name="base_com_z" value="0.25"/>
   <xacro:property name="body_z_offset" value="0.4"/>
-  <xacro:property name="base_z"        value="1.1"/>
+  <xacro:property name="base_z"        value="1.10"/>
 
   <!-- Front and rear wheels are DIFFERENT sizes on Hege: 27 cm front, 40 cm
        rear. Everything downstream has to respect that - the axle heights below
@@ -111,12 +111,28 @@
   <xacro:property name="front_axle_z" value="${front_wheel_radius - base_z}"/>
   <xacro:property name="rear_axle_z"  value="${rear_wheel_radius - base_z}"/>
 
-  <!-- GPS antenna height above base_link, as supplied. NOTE: the chassis box
-       spans 0 to 0.8 above base_link, so at 0.5 the antenna sits inside the
-       body volume. The real RTK antenna is mast-mounted above the roof; raise
-       this past base_height once the mast is measured, because
-       robot_localization uses base_link->gps_link as the lever arm. -->
-  <xacro:property name="gps_z" value="0.5"/>
+  <!-- ============ MEASURED SENSOR HEIGHTS ============ -->
+  <!-- Measured on the real Hege as heights ABOVE THE GROUND, in metres:
+         1.10  base_link   (= base_z above)
+         1.20  imu_link
+         1.30  gps_link
+       Stated here in the same frame they were measured in, and converted to
+       the base_link-relative offsets the joints need, so a re-measure only
+       ever touches the number next to its own name. The lever arms that come
+       out of this are 0.10 m for the IMU and 0.20 m for the GPS antenna;
+       robot_localization reads base_link->gps_link straight off TF, so these
+       are the numbers navsat_transform uses to take the antenna offset out of
+       the fix.
+
+       Worth knowing when reading the model: the chassis box spans 1.10 to
+       1.90 m above the ground, so both frames sit INSIDE the body volume and
+       neither is visible from outside in RViz or Gazebo. That is what was
+       measured, and it is only the visual box that disagrees - the frames
+       themselves are where the hardware is. -->
+  <xacro:property name="imu_height" value="1.20"/>
+  <xacro:property name="gps_height" value="1.30"/>
+  <xacro:property name="imu_z" value="${round(imu_height - base_z, 6)}"/>
+  <xacro:property name="gps_z" value="${round(gps_height - base_z, 6)}"/>
 
   <!-- ============ INERTIA HELPERS ============ -->
   <!-- Hand-written inertia tensors that disagree with the link's mass and
@@ -267,7 +283,7 @@
        the sensors still report in their own frame_name, which
        robot_state_publisher provides from the URDF. -->
 
-  <!-- IMU at the chassis centre -->
+  <!-- IMU, 1.20 m above the ground -->
   <link name="imu_link">
     <inertial>
       <mass value="0.05"/>
@@ -277,10 +293,10 @@
   <joint name="imu_joint" type="fixed">
     <parent link="base_link"/>
     <child  link="imu_link"/>
-    <origin xyz="0 0 ${body_z_offset}" rpy="0 0 0"/>
+    <origin xyz="0 0 ${imu_z}" rpy="0 0 0"/>
   </joint>
 
-  <!-- GPS antenna, top of chassis + mast -->
+  <!-- GPS antenna, 1.30 m above the ground -->
   <link name="gps_link">
     <inertial>
       <mass value="0.05"/>

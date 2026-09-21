@@ -26,11 +26,30 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
+    # The sensor stack, so the measured heights can be read straight off the
+    # screen: base_footprint on the ground, base_link at 1.10 m, imu_link at
+    # 1.20 m, gps_link at 1.30 m. Restricted to those four - with every wheel
+    # and knuckle frame switched on the robot disappears under its own axes.
     - Class: rviz_default_plugins/TF
-      Name: TF
-      Enabled: false
-      Marker Scale: 3
+      Name: Sensor frames
+      Enabled: true
+      # 3 drew 3 m axes. The IMU sits 0.10 m above base_link and the antenna
+      # 0.10 m above that, so at that scale all three frames were one blur;
+      # 0.25 keeps each axis shorter than the gap it has to show.
+      Marker Scale: 0.25
       Show Names: true
+      Show Axes: true
+      Show Arrows: true
+      Frames:
+        All Enabled: false
+        base_footprint:
+          Value: true
+        base_link:
+          Value: true
+        imu_link:
+          Value: true
+        gps_link:
+          Value: true
     # The global plan: the route Hybrid-A* worked out, replanned once a second.
     - Class: rviz_default_plugins/Path
       Name: Global plan
@@ -134,10 +153,12 @@ Visualization Manager:
       Distance: 90
       Pitch: 0.9
       Yaw: 2.3
+      # Z at base_link height rather than on the ground, so orbiting swings
+      # around the chassis instead of around the point it stands on.
       Focal Point:
         X: 14
         Y: 15
-        Z: 0
+        Z: 1.1
       Target Frame: map
 Window Geometry:
   Displays:
