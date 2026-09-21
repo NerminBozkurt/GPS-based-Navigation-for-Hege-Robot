@@ -50,7 +50,7 @@
        ground. -->
   <xacro:property name="base_length"   value="2.2"/>
   <xacro:property name="base_width"    value="1.4"/>
-  <xacro:property name="base_height"   value="0.8"/>
+  <xacro:property name="base_height"   value="0.56"/>
   <!-- Mass. The real machine is 1200 kg. Wheel and knuckle masses are
        estimates for tractor-style wheels; the chassis takes whatever is left,
        so the total always comes out at total_mass no matter which of these is
@@ -80,13 +80,14 @@
               - 2*(front_wheel_mass + steer_link_mass)*(wheelbase/2)
               + 2*rear_wheel_mass*(wheelbase/2)) / base_mass}"/>
 
-  <!-- Centre of mass height above base_link. The body box spans 0 to 0.8, but
+  <!-- Centre of mass height above base_link. The body box spans -0.28 to +0.28, but
        the heavy parts of a machine like this - drivetrain, batteries - sit low,
        so the centre of mass is placed below the box's geometric centre. It
        matters for rollover behaviour on slopes. -->
-  <xacro:property name="base_com_z" value="0.25"/>
-  <xacro:property name="body_z_offset" value="0.4"/>
-  <xacro:property name="base_z"        value="1.1"/>
+  <xacro:property name="base_com_z"    value="-0.05"/>
+  <xacro:property name="body_z_offset" value="0.0"/>
+  <xacro:property name="base_z"        value="1.10"/>
+  <xacro:property name="imu_z"         value="0.10"/>
 
   <!-- Front and rear wheels are DIFFERENT sizes on Hege: 27 cm front, 40 cm
        rear. Everything downstream has to respect that - the axle heights below
@@ -111,12 +112,9 @@
   <xacro:property name="front_axle_z" value="${front_wheel_radius - base_z}"/>
   <xacro:property name="rear_axle_z"  value="${rear_wheel_radius - base_z}"/>
 
-  <!-- GPS antenna height above base_link, as supplied. NOTE: the chassis box
-       spans 0 to 0.8 above base_link, so at 0.5 the antenna sits inside the
-       body volume. The real RTK antenna is mast-mounted above the roof; raise
-       this past base_height once the mast is measured, because
-       robot_localization uses base_link->gps_link as the lever arm. -->
-  <xacro:property name="gps_z" value="0.5"/>
+  <!-- GPS antenna height above base_link. Real measured height is 1.30 m from ground,
+       which is +0.20 m above base_link (1.10 m). -->
+  <xacro:property name="gps_z" value="0.20"/>
 
   <!-- ============ INERTIA HELPERS ============ -->
   <!-- Hand-written inertia tensors that disagree with the link's mass and
@@ -267,7 +265,7 @@
        the sensors still report in their own frame_name, which
        robot_state_publisher provides from the URDF. -->
 
-  <!-- IMU at the chassis centre -->
+  <!-- IMU at the Jetson / electronics enclosure (+0.10 m above base_link, 1.20 m from ground) -->
   <link name="imu_link">
     <inertial>
       <mass value="0.05"/>
@@ -277,7 +275,7 @@
   <joint name="imu_joint" type="fixed">
     <parent link="base_link"/>
     <child  link="imu_link"/>
-    <origin xyz="0 0 ${body_z_offset}" rpy="0 0 0"/>
+    <origin xyz="0 0 ${imu_z}" rpy="0 0 0"/>
   </joint>
 
   <!-- GPS antenna, top of chassis + mast -->
