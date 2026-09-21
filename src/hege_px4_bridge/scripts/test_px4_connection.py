@@ -37,6 +37,7 @@ class PX4ConnectionTester(Node):
         self.last_attitude = None
 
         self.create_subscription(VehicleStatus, '/fmu/out/vehicle_status', self.cb_status, self.qos)
+        self.create_subscription(VehicleStatus, '/fmu/out/vehicle_status_v1', self.cb_status, self.qos)
         self.create_subscription(VehicleGlobalPosition, '/fmu/out/vehicle_global_position', self.cb_gps, self.qos)
         self.create_subscription(VehicleOdometry, '/fmu/out/vehicle_odometry', self.cb_odom, self.qos)
         self.create_subscription(VehicleAttitude, '/fmu/out/vehicle_attitude', self.cb_attitude, self.qos)

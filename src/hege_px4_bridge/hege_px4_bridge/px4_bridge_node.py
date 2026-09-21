@@ -132,6 +132,9 @@ class HegePx4BridgeNode(Node):
         self.vehicle_status_sub = self.create_subscription(
             VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, self.px4_qos
         )
+        self.vehicle_status_v1_sub = self.create_subscription(
+            VehicleStatus, '/fmu/out/vehicle_status_v1', self.vehicle_status_callback, self.px4_qos
+        )
         self.vehicle_attitude_sub = self.create_subscription(
             VehicleAttitude, '/fmu/out/vehicle_attitude', self.vehicle_attitude_callback, self.px4_qos
         )
