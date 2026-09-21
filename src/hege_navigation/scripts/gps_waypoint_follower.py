@@ -52,6 +52,7 @@ keeping a line of that up to date would mean spawning and deleting hundreds of
 entities per second. RViz draws /plan natively and is the right tool for it.
 """
 
+import copy
 import math
 import sys
 import time
@@ -253,7 +254,15 @@ class GpsWaypointFollower(Node):
 
     # ---------------------------------------------------------------- drawing
     def draw_rviz(self, poses):
-        """Publish the waypoints as RViz markers: a sphere and a number each."""
+        """Publish the waypoints as RViz markers: a sphere and a number each.
+
+        Both markers take a COPY of the waypoint pose. Assigning a message
+        field in rclpy stores the reference, so sharing one Pose between the
+        sphere, the label and the goal means the last z written wins for all
+        three: the number ends up buried in the ball, and the poses handed to
+        FollowWaypoints below carry a marker's drawing height instead of the
+        zero to_map() deliberately put there.
+        """
         array = MarkerArray()
         for i, pose in enumerate(poses):
             ball = Marker()
@@ -263,7 +272,7 @@ class GpsWaypointFollower(Node):
             ball.id = i
             ball.type = Marker.SPHERE
             ball.action = Marker.ADD
-            ball.pose = pose.pose
+            ball.pose = copy.deepcopy(pose.pose)
             ball.pose.position.z = 1.0
             ball.scale.x = ball.scale.y = ball.scale.z = 1.5
             ball.color.r, ball.color.g, ball.color.b, ball.color.a = 1.0, 0.3, 0.0, 0.9
@@ -275,7 +284,7 @@ class GpsWaypointFollower(Node):
             label.id = i
             label.type = Marker.TEXT_VIEW_FACING
             label.action = Marker.ADD
-            label.pose = pose.pose
+            label.pose = copy.deepcopy(pose.pose)
             label.pose.position.z = 3.0
             label.scale.z = 2.0
             label.color.r = label.color.g = label.color.b = label.color.a = 1.0

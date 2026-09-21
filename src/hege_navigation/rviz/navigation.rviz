@@ -79,13 +79,20 @@ Visualization Manager:
       Line Width: 0.2
       Alpha: 1
     # Waypoints, published by gps_waypoint_follower after it converts them.
+    # Transient Local, not Volatile: the follower publishes this array exactly
+    # once, at the start of a run. A volatile subscriber still matches a
+    # transient-local publisher, but it is only handed messages sent AFTER the
+    # match, so anything that re-subscribes later - RViz opened mid-run, the
+    # display toggled off and on, the config reloaded - gets an empty display
+    # and stays empty, because there is no second publish coming. Matching the
+    # publisher's durability is what makes the latched copy arrive on connect.
     - Class: rviz_default_plugins/MarkerArray
       Name: GPS waypoints
       Enabled: true
       Topic:
         Value: /gps_waypoints
         Depth: 10
-        Durability Policy: Volatile
+        Durability Policy: Transient Local
         History Policy: Keep Last
         Reliability Policy: Reliable
     # Both costmaps are empty of obstacles - the robot has no sensor that could
