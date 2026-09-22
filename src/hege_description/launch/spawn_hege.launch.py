@@ -1,40 +1,32 @@
-"""Bring up Gazebo Harmonic with the Hege rover spawned in it.
+"""Bring up Gazebo CLASSIC with the Hege rover spawned in it.
 
     ros2 launch hege_description spawn_hege.launch.py
     ros2 launch hege_description spawn_hege.launch.py gui:=false   # headless
 
-This is the simulation the navigation stack runs against:
+This is the simulation the navigation stack runs against, and the one every
+measured number in nav2_params.yaml and dual_ekf_navsat.yaml came from.
 
-    ros2 launch hege_description spawn_hege.launch.py
-    ros2 launch hege_localization localization.launch.py
-    ros2 launch hege_navigation navigation.launch.py rviz:=true
+It needs ros-humble-gazebo-ros-pkgs and ros-humble-gazebo-ros2-control, which
+CANNOT be installed alongside Gazebo Harmonic: the two conflict over
+/usr/bin/gz, and installing either apt-removes the other.
 
-It used to be Gazebo Classic. spawn_hege_classic.launch.py is that file, kept
-unchanged and still working on a machine that has Classic installed - but the
-two cannot be installed together, because their Debian packages both ship
-/usr/bin/gz and conflict outright. PX4 SITL requires Harmonic, so this side
-moved to Harmonic as well rather than making the machine choose. The reasoning
-and the migration notes are in docs/gazebo_harmonic.md.
-
-What ROS sees is deliberately unchanged: /imu/data, /gps/fix, the Ackermann
-controller's odometry and /cmd_vel all carry the same messages on the same
-topics as before, so hege_localization and hege_navigation did not have to
-change at all. The difference is that a gz sensor publishes on gz-transport
-and ros_gz_bridge carries it across, instead of a Gazebo plugin publishing to
-ROS directly.
+spawn_hege_gz.launch.py next to this one is the same simulation ported to
+Gazebo Harmonic. It exists because PX4 SITL requires Harmonic, so a machine
+that runs the PX4 integration cannot run this file. Both are kept and both are
+driven from the same hege.urdf.xacro. See docs/gazebo_harmonic.md.
 """
 
 import os
+import re
 
 import xacro
 
-from ament_index_python.packages import (PackageNotFoundError, get_package_prefix,
-                                         get_package_share_directory)
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
-                            OpaqueFunction, RegisterEventHandler,
-                            SetEnvironmentVariable)
+                            OpaqueFunction, RegisterEventHandler)
 from launch.event_handlers import OnProcessExit
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -43,75 +35,65 @@ from launch_ros.descriptions import ParameterValue
 
 def launch_setup(context, *args, **kwargs):
     pkg_share = get_package_share_directory('hege_description')
-    ros_gz_sim_share = get_package_share_directory('ros_gz_sim')
+    gazebo_ros_share = get_package_share_directory('gazebo_ros')
 
     xacro_file = os.path.join(pkg_share, 'urdf', 'hege.urdf.xacro')
 
-    # Expanded here rather than through a Command substitution because the
-    # controller manager needs the same string and the xacro takes a mapping.
-    # Unlike the Classic file this needs no comment stripping: gz_ros2_control
-    # reads robot_description off the parameter server rather than passing it
-    # through a command line that rcl then parses as YAML.
+    # Processed here rather than via a Command substitution on purpose (and it
+    # is what lets the drive mode be a xacro mapping at all).
+    # In ros2_control mode, gazebo_ros2_control forwards robot_description to controller_manager as a
+    # command-line override, '--param robot_description:=<urdf>', and rcl parses
+    # that value as YAML. Two things in a normal xacro output break it:
+    #   - the leading <?xml ... ?> declaration
+    #   - any ': ' sequence, which YAML reads as the start of a mapping
+    # documentElement.toxml() drops the declaration, and stripping XML comments
+    # removes the ': ' sequences (they only ever appear in prose comments here).
+    # Without both, controller_manager never starts and the controller spawners
+    # wait forever on /controller_manager/list_controllers.
+    drive = LaunchConfiguration('drive').perform(context)
     robot_description_xml = xacro.process_file(
-        xacro_file, mappings={'drive': 'gz'}).documentElement.toxml()
+        xacro_file, mappings={'drive': drive}).documentElement.toxml()
+    robot_description_xml = re.sub(r'<!--.*?-->', '', robot_description_xml,
+                                   flags=re.DOTALL)
 
     use_sim_time = LaunchConfiguration('use_sim_time')
-    world = LaunchConfiguration('world').perform(context)
-    gui = LaunchConfiguration('gui').perform(context).lower() in ('true', '1')
 
-    # Humble's binary gz_ros2_control is built against Gazebo Fortress
-    # (libsdformat12), so on Harmonic it has to come from a source build in its
-    # own workspace. Gazebo then cannot find the system plugin, because it
-    # looks for those on GZ_SIM_SYSTEM_PLUGIN_PATH rather than through ament.
-    #
-    # Setting it here rather than leaving it to the operator's shell, because
-    # the failure it causes is quiet and misleading: Gazebo starts, the world
-    # loads, the model appears, and then every controller spawner sits waiting
-    # for a /controller_manager that was never created.
-    plugin_path_actions = []
-    try:
-        gz_control_lib = os.path.join(get_package_prefix('gz_ros2_control'), 'lib')
-        existing = os.environ.get('GZ_SIM_SYSTEM_PLUGIN_PATH', '')
-        plugin_path_actions.append(SetEnvironmentVariable(
-            'GZ_SIM_SYSTEM_PLUGIN_PATH',
-            gz_control_lib + (':' + existing if existing else '')))
-    except PackageNotFoundError:
-        # Let the launch continue: the failure further down is clearer than an
-        # exception here, and this path is also taken if gz_ros2_control was
-        # installed somewhere ament cannot see but Gazebo can.
-        print('WARNING: gz_ros2_control not found. Source its workspace first, '
-              'or the controller manager will never start. '
-              'See docs/gazebo_harmonic.md.')
-
-    # -r starts the world unpaused; -s is server only. Without -r the
-    # controllers spawn against a simulator whose clock never advances, and
-    # every spawner times out waiting for the controller manager.
-    gz_args = '-r -v 3 ' + world if gui else '-r -s -v 3 ' + world
-
-    gz_sim = IncludeLaunchDescription(
+    # gzserver carries the ROS init + factory plugins; spawn_entity needs the
+    # factory one to exist or the service call below never appears.
+    gzserver = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(ros_gz_sim_share, 'launch', 'gz_sim.launch.py')),
-        launch_arguments={'gz_args': gz_args}.items(),
+            os.path.join(gazebo_ros_share, 'launch', 'gzserver.launch.py')),
+        launch_arguments={'world': LaunchConfiguration('world'),
+                          'verbose': 'true'}.items(),
     )
+
+    gzclient = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(gazebo_ros_share, 'launch', 'gzclient.launch.py')),
+        condition=IfCondition(LaunchConfiguration('gui')),
+    )
+
+    # Expands the xacro at launch time, so editing the URDF needs no rebuild
+    # (the package is installed with --symlink-install).
+    robot_description = ParameterValue(robot_description_xml, value_type=str)
 
     robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         output='screen',
         parameters=[{
-            'robot_description': ParameterValue(robot_description_xml, value_type=str),
+            'robot_description': robot_description,
             'use_sim_time': use_sim_time,
         }],
     )
 
     spawn_entity = Node(
-        package='ros_gz_sim',
-        executable='create',
+        package='gazebo_ros',
+        executable='spawn_entity.py',
         output='screen',
         arguments=[
             '-topic', 'robot_description',
-            '-name', 'hege',
-            '-allow_renaming', 'false',
+            '-entity', 'hege',
             '-x', LaunchConfiguration('x'),
             '-y', LaunchConfiguration('y'),
             '-z', LaunchConfiguration('z'),
@@ -119,33 +101,9 @@ def launch_setup(context, *args, **kwargs):
         ],
     )
 
-    # The seam between the two middlewares. Everything ROS consumes from the
-    # simulator crosses here, and the type on each side has to match what the
-    # sensor actually publishes - a wrong type is not an error, it is a topic
-    # that exists and stays empty.
-    #
-    # All four are gz -> ROS only ('[') because nothing in the stack commands
-    # the simulator through gz-transport; /cmd_vel goes to the Ackermann
-    # controller through ros2_control instead.
-    bridge = Node(
-        package='ros_gz_bridge',
-        executable='parameter_bridge',
-        output='screen',
-        arguments=[
-            # Without this every node with use_sim_time waits forever.
-            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-            '/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU',
-            '/gps/fix@sensor_msgs/msg/NavSatFix[gz.msgs.NavSat',
-            # Ground truth for localization_monitor.py. Replaces Classic's
-            # /model_states. Nothing in the navigation stack may consume it.
-            '/ground_truth/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-        ],
-        parameters=[{'use_sim_time': use_sim_time}],
-    )
-
-    # Controllers can only be spawned once gz_ros2_control has come up with the
-    # model, which happens during the create call - hence the chaining rather
-    # than starting everything at once.
+    # Controllers can only be spawned once gazebo_ros2_control has come up
+    # with the model, which happens during spawn_entity - hence the chaining
+    # below rather than starting everything at once.
     joint_state_broadcaster = Node(
         package='controller_manager',
         executable='spawner',
@@ -172,36 +130,40 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
     )
 
-    return plugin_path_actions + [
-        gz_sim,
-        robot_state_publisher,
-        bridge,
-        spawn_entity,
-        RegisterEventHandler(OnProcessExit(
-            target_action=spawn_entity,
-            on_exit=[joint_state_broadcaster])),
-        RegisterEventHandler(OnProcessExit(
-            target_action=joint_state_broadcaster,
-            on_exit=[ackermann_controller, cmd_vel_relay])),
-    ]
+    nodes = [gzserver, gzclient, robot_state_publisher, spawn_entity]
+
+    # In planar mode the Gazebo plugin takes /cmd_vel straight from teleop, so
+    # there is no controller_manager to talk to and nothing to relay.
+    if drive == 'ros2_control':
+        nodes += [
+            RegisterEventHandler(OnProcessExit(
+                target_action=spawn_entity,
+                on_exit=[joint_state_broadcaster])),
+            RegisterEventHandler(OnProcessExit(
+                target_action=joint_state_broadcaster,
+                on_exit=[ackermann_controller, cmd_vel_relay])),
+        ]
+    return nodes
 
 
 def generate_launch_description():
     default_world = os.path.join(
-        get_package_share_directory('hege_description'), 'worlds',
-        'hege_field_gz.world')
+        get_package_share_directory('hege_description'), 'worlds', 'hege_field.world')
     return LaunchDescription([
         DeclareLaunchArgument(
+            'drive', default_value='ros2_control',
+            choices=['planar', 'ros2_control'],
+            description='planar = teleop-friendly Gazebo plugin; '
+                        'ros2_control = real Ackermann controller.'),
+        DeclareLaunchArgument(
             'gui', default_value='true',
-            description='Run the Gazebo GUI as well as the server.'),
+            description='Run the Gazebo client GUI as well as the server.'),
         DeclareLaunchArgument(
             'world', default_value=default_world,
-            description='Full path to the Harmonic world file to load. '
-                        'hege_field.world next to it is the Classic original '
-                        'and will not load here.'),
+            description='Full path to the .world file to load.'),
         DeclareLaunchArgument(
             'use_sim_time', default_value='true',
-            description='Use the /clock topic bridged from Gazebo.'),
+            description='Use the /clock topic published by Gazebo.'),
         DeclareLaunchArgument('x', default_value='0.0'),
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('z', default_value='0.3'),

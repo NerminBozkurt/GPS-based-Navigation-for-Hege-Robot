@@ -1,9 +1,14 @@
-# Moving the simulation to Gazebo Harmonic
+# The Gazebo Harmonic port of the simulation
 
-The ROS-driven simulation used to run on Gazebo Classic. It now runs on Gazebo
-Harmonic. This is why, what changed, and what to install.
+The navigation simulation runs on Gazebo **Classic**, through
+`spawn_hege.launch.py`. That is the default and it is what every measured
+number in the tuning came from.
 
-## Why
+`spawn_hege_gz.launch.py` is the same simulation ported to Gazebo
+**Harmonic**. This document is about that port: why it exists, what changed in
+it, and what to install to run it.
+
+## Why it exists at all
 
 Gazebo Classic and Gazebo Harmonic **cannot be installed on the same machine**.
 Their Debian packages both ship `/usr/bin/gz` and conflict outright:
@@ -13,13 +18,16 @@ Their Debian packages both ship `/usr/bin/gz` and conflict outright:
 
 `apt install gz-harmonic` therefore removes `gazebo`, `ros-humble-gazebo-ros`,
 `ros-humble-gazebo-plugins`, `ros-humble-gazebo-ros2-control` and everything
-else in the Classic ROS stack, without asking twice.
+else in the Classic ROS stack, without asking twice. It is worth knowing that
+this is how it fails, because the symptom afterwards is
+`package 'gazebo_ros' not found` and nothing says a simulator was uninstalled.
 
-PX4 v1.16 SITL requires Harmonic. So the choice was never "which simulator do
-we prefer" but "which one machine can have". Keeping the navigation simulation
-on Classic would have meant a machine that could run either the path planning
-or the PX4 integration, never both, with a gigabyte of apt churn between them.
-Moving this side to Harmonic makes one machine run everything.
+PX4 v1.16 SITL requires Harmonic. So a machine set up for the PX4 integration
+cannot run the Classic simulation, and this port is what it runs instead. A
+machine doing navigation work keeps Classic and never needs any of this.
+
+Both launch files are driven from the same `hege.urdf.xacro`, so the vehicle
+is described once either way.
 
 ## What did NOT change
 
@@ -51,7 +59,7 @@ in which joints they expose.
 **Sensors publish differently.** A Classic sensor carried a ROS plugin that
 published straight to a ROS topic. A gz sensor publishes on gz-transport and
 `ros_gz_bridge` carries it across, so the `<topic>` in the URDF and the bridge
-arguments in `spawn_hege.launch.py` have to agree. The GPS sensor type is now
+arguments in `spawn_hege_gz.launch.py` have to agree. The GPS sensor type is now
 called `navsat`, not `gps`.
 
 **The world loads its own systems.** Harmonic loads nothing by default.
@@ -74,34 +82,30 @@ have no Harmonic equivalent. The `gz` branch of the URDF runs
 `gazebo_msgs` import is now optional so it still starts on a machine without
 the Classic messages.
 
-**Files that moved:**
+**The files, and which simulator each belongs to:**
 
-| Before | Now |
+| Classic | Harmonic |
 | --- | --- |
-| `launch/spawn_hege.launch.py` (Classic) | `launch/spawn_hege_classic.launch.py` |
-| — | `launch/spawn_hege.launch.py` (Harmonic) |
-| `worlds/hege_field.world` (Classic) | unchanged, still there |
-| — | `worlds/hege_field_gz.world` |
+| `launch/spawn_hege.launch.py` | `launch/spawn_hege_gz.launch.py` |
+| `worlds/hege_field.world` | `worlds/hege_field_gz.world` |
+| `drive:=planar`, `drive:=ros2_control` | `drive:=gz`, `drive:=px4` |
 
-The command you already know is unchanged and now starts Harmonic:
+Nothing above the simulator changes between them:
 
-    ros2 launch hege_description spawn_hege.launch.py
+    ros2 launch hege_description spawn_hege.launch.py      # or _gz
+    ros2 launch hege_localization localization.launch.py
+    ros2 launch hege_navigation navigation.launch.py rviz:=true
 
 ## What to install
 
-**Read this before running `rosdep install`.** `hege_description/package.xml`
-deliberately declares *neither* Gazebo generation, because rosdep would resolve
-the names to the wrong packages and uninstall what is working:
+This section is only for the Harmonic path. For the Classic default,
+`hege_description/package.xml` declares what it needs and `rosdep install`
+works normally.
 
-- `ros_gz_sim`, `ros_gz_bridge` and `gz_ros2_control` resolve to the ROS 2
-  Humble binaries, which are built against Gazebo **Fortress**. Humble's
-  official Gazebo pairing is Fortress, not Harmonic. Installing them next to
-  Harmonic pulls in a second, conflicting Gazebo.
-- `gazebo_ros`, `gazebo_plugins` and `gazebo_ros2_control` are Classic, and
-  conflict with Harmonic as described above.
-
-So the ROS-to-Harmonic packages have to be installed deliberately, and they
-come from two different places.
+`package.xml` deliberately does **not** declare the Harmonic packages, because
+rosdep would then uninstall Classic to satisfy them on a Classic machine. So
+they have to be installed deliberately, and they come from two different
+places.
 
 **`ros_gz` — from apt.** The OSRF repository, which is already configured if
 `gz-harmonic` was installed from it, ships Harmonic builds under a suffixed
@@ -145,7 +149,7 @@ Then source it before this workspace, in every terminal:
     source gz_ros2_control_ws/install/setup.bash
     source install/setup.bash
 
-`spawn_hege.launch.py` takes care of `GZ_SIM_SYSTEM_PLUGIN_PATH` itself, by
+`spawn_hege_gz.launch.py` takes care of `GZ_SIM_SYSTEM_PLUGIN_PATH` itself, by
 looking up the `gz_ros2_control` prefix through ament. That matters because the
 failure when it is missing is quiet: Gazebo starts, the world loads, the model
 appears, and then every controller spawner sits waiting for a
@@ -161,7 +165,7 @@ continuing.
 
 ## Checking it works
 
-    ros2 launch hege_description spawn_hege.launch.py
+    ros2 launch hege_description spawn_hege_gz.launch.py
 
     ros2 control list_controllers      # joint_state_broadcaster,
                                        # ackermann_steering_controller, both active
@@ -191,6 +195,6 @@ The measured numbers in `nav2_params.yaml` and `dual_ekf_navsat.yaml` — the
 turning radii, the lookahead distances, the 0.08 m localization error — all
 come from Gazebo Classic runs. Harmonic uses a different physics engine
 (DART rather than ODE), so the tyre behaviour and therefore the achievable
-turning radius may genuinely differ. Those numbers should be re-measured on
-Harmonic before they are trusted again, which is also why
-`spawn_hege_classic.launch.py` is kept rather than deleted.
+turning radius may genuinely differ. Expect to re-measure them here rather
+than assuming they carry over. That, and the fact that Classic is where the
+work was actually done, is why Classic remains the default.

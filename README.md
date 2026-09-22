@@ -42,11 +42,14 @@ localization, Nav2 planning and tracking a GPS route.
 is the same navigation and localization stack with PX4 in the middle, driving
 the same vehicle through the Pixhawk's own interface.
 
-`hege.urdf.xacro` serves both through its `drive` argument and stays the single
-source of the vehicle's geometry. It also still carries the two Gazebo Classic
-modes, reachable through `spawn_hege_classic.launch.py` — but Classic and
-Harmonic cannot be installed on the same machine, and PX4 requires Harmonic.
-`docs/gazebo_harmonic.md` covers that migration and what to install.
+`hege.urdf.xacro` serves every one of these through its `drive` argument and
+stays the single source of the vehicle's geometry.
+
+The catch is that the first block runs Gazebo **Classic** and PX4 SITL requires
+Gazebo **Harmonic**, and the two cannot be installed on the same machine —
+their packages conflict outright. So `spawn_hege_gz.launch.py` is the same
+navigation simulation ported to Harmonic, for a machine set up for the PX4
+side. `docs/gazebo_harmonic.md` covers that port and what to install.
 
 ## Docs
 

@@ -18,10 +18,12 @@ configuration that makes one host the other.
 
 Worse, the two cannot even be installed side by side: their Debian packages
 both ship `/usr/bin/gz` and conflict, so installing Harmonic apt-removes the
-whole Classic ROS stack. That is why the ROS simulation was moved to Harmonic
-as well; `docs/gazebo_harmonic.md` covers that port.
-`spawn_hege_classic.launch.py` is the Classic original, kept for reference and
-for a machine dedicated to it.
+whole Classic ROS stack. A machine therefore runs one or the other.
+
+That is what `spawn_hege_gz.launch.py` is for: the navigation simulation ported
+to Harmonic, so a machine set up for PX4 can still run it.
+`docs/gazebo_harmonic.md` covers that port. On a navigation machine,
+`spawn_hege.launch.py` and Gazebo Classic stay the default.
 
 The other thing that does not carry over is `ros2_control`. PX4 does not use
 it: PX4 owns the actuators and writes the wheel and steering joints directly
