@@ -48,7 +48,7 @@ a day in the field.
 | Gazebo Classic simulation, Ackermann controller | Working |
 | Dual-EKF + `navsat_transform` localization | Working, ~0.08 m against ground truth |
 | Nav2 GPS waypoint following | Working, full mission driven end to end |
-| Bridge and sensor conversion unit tests | 141 passing |
+| Unit and model regression tests | 159 passing |
 | Jetson–Pixhawk ROS 2 topic link | Working *(verified on hardware by Oğuzhan)* |
 | PX4 offboard heartbeat at 20 Hz | Working *(same)* |
 | ROS GPS, IMU and odometry conversion | Working *(same)* |
@@ -116,23 +116,27 @@ The measured turning radii in `nav2_params.yaml` — 4.20 m at 0.6 m/s, 4.64 at
 re-measured. The geometric minimum moved from 2.79 m to 2.71 m; the achievable
 one may have moved too.
 
-Three later changes in that repository are **not** adopted here, because each
-would move something this stack was measured against and the reasoning behind
-them is not written down:
+Three later changes from that repository are now adopted as well, and each one
+moved something else with it:
 
-- `base_footprint` shifted 0.95 m so it sits at the rear axle rather than the
-  vehicle centre. That is arguably the right reference point for Ackermann
-  odometry, but Nav2's footprint polygon and `robot_base_frame` here are both
-  defined about the centre, so adopting it means re-deriving those.
-- Lateral wheel friction lowered from 1.0 to 0.8, which changes tyre slip and
-  therefore the achievable turning radius — the number that is already pending
-  a re-measure.
-- A `hege_evaluation` package with a GPS noise evaluator that scores the
-  simulated fix against ground truth. `localization_monitor.py` here already
-  does a comparable job; the two should probably be reconciled rather than run
-  side by side.
+- **`base_footprint` sits at the rear axle**, not under the middle of the
+  vehicle. That is the bicycle model's reference point and what
+  `ackermann_steering_controller` computes its odometry about, so
+  `base_frame_id: base_footprint` only means what it says with the frame there.
+  Nav2's footprint polygon moved with it — it now runs from −0.5 m to +2.2 m
+  instead of −1.4 to +1.3.
+- **Lateral tyre friction dropped from 1.0 to 0.8**, which lets the tyres scrub
+  further in a corner and widens the achieved turning circle.
+- **`hege_evaluation`**, which scores the simulated GPS against ground truth and
+  publishes the running error on `/hege/evaluation/gps_noise`. Its
+  `sim_gps_covariance` node is not optional in the Harmonic path: Gazebo
+  publishes the fix with no covariance, and the EKF has to be told how far to
+  trust it.
 
-Worth asking Oğuzhan about the first one in particular.
+The first two both act on the numbers already pending a re-measure, in opposite
+directions — lower friction widens the circle, a rear-axle origin narrows it by
+about 0.1 m at these radii. `nav2_params.yaml` spells that out where the radii
+are set.
 
 ## Packages
 
@@ -145,9 +149,10 @@ Worth asking Oğuzhan about the first one in particular.
 | `hege_px4_sensors` | PX4 NED/FRD topics → standard ROS `Odometry`, `Imu`, `NavSatFix` |
 | `hege_bringup` | `twist_mux` arbitration and the real/SITL launch files |
 | `hege_px4_sim` | The Hege Gazebo model and PX4 airframe for SITL |
+| `hege_evaluation` | Scores the simulated GPS against Gazebo ground truth, and gives the fix its covariance |
 
-`hege_px4_bridge`, `hege_px4_sensors` and `hege_bringup` were written by
-Oğuzhan Enes Işık against the real Pixhawk and PX4 SITL in
+`hege_px4_bridge`, `hege_px4_sensors`, `hege_bringup` and `hege_evaluation`
+were written by Oğuzhan Enes Işık against the real Pixhawk and PX4 SITL in
 [oguzissik/hege_gps_navigation](https://github.com/oguzissik/hege_gps_navigation)
 and brought in from there.
 

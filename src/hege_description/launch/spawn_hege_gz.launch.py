@@ -37,6 +37,7 @@ from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
                             OpaqueFunction, RegisterEventHandler,
                             SetEnvironmentVariable)
 from launch.event_handlers import OnProcessExit
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -141,9 +142,10 @@ def launch_setup(context, *args, **kwargs):
             # fix with no covariance at all, and sim_gps_covariance fills it in
             # before anything downstream sees it.
             '/gps/fix@sensor_msgs/msg/NavSatFix[gz.msgs.NavSat',
-            # Ground truth for localization_monitor.py. Replaces Classic's
-            # /model_states. Nothing in the navigation stack may consume it.
-            '/ground_truth/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+            # Ground truth, for localization_monitor.py and the GPS noise
+            # evaluator. Replaces Classic's /model_states. Nothing in the
+            # navigation stack may consume it.
+            '/hege/ground_truth/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
         ],
         remappings=[('/gps/fix', '/gps/fix_raw')],
         parameters=[{'use_sim_time': use_sim_time}],
@@ -153,8 +155,8 @@ def launch_setup(context, *args, **kwargs):
     # Harmonic NavSat sensor wants; these two are the same quantity in metres,
     # which is what a covariance has to be. Keep them in step with gps_noise.
     gps_covariance = Node(
-        package='hege_description',
-        executable='sim_gps_covariance.py',
+        package='hege_evaluation',
+        executable='sim_gps_covariance',
         name='sim_gps_covariance',
         output='screen',
         parameters=[{
@@ -165,6 +167,20 @@ def launch_setup(context, *args, **kwargs):
             'vertical_stddev_m': 0.04,
             'origin_latitude_deg': 52.466,
         }],
+    )
+
+    # Scores the simulated fix against the noise-free ground truth and reports
+    # running error statistics on /hege/evaluation/gps_noise. Off the critical
+    # path - it reads the same two topics everything else does and publishes a
+    # string. Worth leaving on: it is how you find out that the GPS is not the
+    # error you configured.
+    gps_evaluator = Node(
+        package='hege_evaluation',
+        executable='gps_noise_evaluator',
+        name='gps_noise_evaluator',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
+        condition=IfCondition(LaunchConfiguration('evaluate_gps')),
     )
 
     # Controllers can only be spawned once gz_ros2_control has come up with the
@@ -201,6 +217,7 @@ def launch_setup(context, *args, **kwargs):
         robot_state_publisher,
         bridge,
         gps_covariance,
+        gps_evaluator,
         spawn_entity,
         RegisterEventHandler(OnProcessExit(
             target_action=spawn_entity,
@@ -227,6 +244,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'use_sim_time', default_value='true',
             description='Use the /clock topic bridged from Gazebo.'),
+        DeclareLaunchArgument(
+            'evaluate_gps', default_value='true',
+            description='Score the simulated GPS against Gazebo ground truth '
+                        'and report the error on /hege/evaluation/gps_noise.'),
         DeclareLaunchArgument('x', default_value='0.0'),
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('z', default_value='0.3'),

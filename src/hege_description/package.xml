@@ -18,6 +18,8 @@
   <exec_depend>joint_state_broadcaster</exec_depend>
   <exec_depend>ackermann_steering_controller</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <!-- spawn_hege_gz.launch.py runs sim_gps_covariance and the GPS evaluator. -->
+  <exec_depend>hege_evaluation</exec_depend>
   <!-- Gazebo CLASSIC, which is what spawn_hege.launch.py uses and what the
        navigation tuning was measured against. -->
   <exec_depend>gazebo_ros</exec_depend>

@@ -202,8 +202,9 @@ def test_gz_mode_publishes_ground_truth_without_owning_tf():
     plugin = plugins[0]
     assert plugin.findtext('robot_base_frame') == 'base_footprint'
     assert plugin.findtext('odom_frame') == 'world'
+    assert plugin.findtext('odom_topic') == '/hege/ground_truth/odom'
     tf_topic = plugin.findtext('tf_topic') or ''
-    assert tf_topic and 'tf' in tf_topic and tf_topic != '/tf', \
+    assert tf_topic and tf_topic != '/tf', \
         'ground truth TF must go somewhere the bridge does not carry'
 
 
@@ -247,3 +248,39 @@ def test_every_mode_describes_the_same_vehicle():
     for limit in limits:
         assert math.isclose(float(limit.attrib['upper']), values['max_steer'],
                             abs_tol=1e-9)
+
+
+# -------------------------------------------------------------- frames
+
+def test_base_footprint_sits_at_the_rear_axle():
+    """The rear axle is the bicycle model's reference point and what
+    ackermann_steering_controller computes odometry about, so base_footprint
+    belongs there rather than under the middle of the vehicle.
+
+    Anything measured about this frame - Nav2's footprint polygon above all -
+    has to move with it, which is why this is pinned down by a test."""
+    values = properties()
+    for mode in ('planar', 'ros2_control', 'gz', 'px4'):
+        _, root = expand(mode)
+        joint = next(j for j in root.iter('joint')
+                     if j.attrib['name'] == 'base_joint')
+        xyz = [float(v) for v in joint.find('origin').attrib['xyz'].split()]
+        assert math.isclose(xyz[0], values['wheelbase'] / 2, abs_tol=1e-9), mode
+        assert math.isclose(xyz[2], values['base_z'], abs_tol=1e-9), mode
+
+        # And the rear wheels must then land on base_footprint's own x.
+        rear = next(j for j in root.iter('joint')
+                    if j.attrib['name'] == 'left_rear_wheel_joint')
+        rear_x = float(rear.find('origin').attrib['xyz'].split()[0])
+        assert math.isclose(rear_x, -values['wheelbase'] / 2, abs_tol=1e-9), mode
+
+
+def test_wheel_friction_is_configurable_and_equal():
+    """Lateral friction is what widens the achieved turning circle past the
+    geometric one, so it is a named property rather than a literal."""
+    values = properties()
+    assert 'wheel_mu_longitudinal' in values
+    assert 'wheel_mu_lateral' in values
+    text, _ = expand('planar')
+    assert f'<mu1>{values["wheel_mu_longitudinal"]}</mu1>' in text
+    assert f'<mu2>{values["wheel_mu_lateral"]}</mu2>' in text

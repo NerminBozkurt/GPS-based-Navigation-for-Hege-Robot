@@ -97,8 +97,11 @@ about 0.61 of the north one.
 `position_covariance` all zeros and `COVARIANCE_TYPE_UNKNOWN`.
 `navsat_transform` carries that into `/odometry/gps`, and the global EKF uses
 it to decide how far to move towards each fix — so it was guessing. The bridge
-now publishes to `/gps/fix_raw` and `sim_gps_covariance.py` republishes it on
-`/gps/fix` with the covariance the noise settings imply, anisotropy included.
+now publishes to `/gps/fix_raw` and `hege_evaluation`'s `sim_gps_covariance`
+republishes it on `/gps/fix` with the covariance the noise settings imply,
+anisotropy included. The same package's `gps_noise_evaluator` scores the fix
+against ground truth and reports on `/hege/evaluation/gps_noise`, which is how
+you find out the GPS is not the error you configured.
 
 Worth checking on the Classic path too: whether `libgazebo_ros_gps_sensor`
 fills the covariance is not something this port established. `ros2 topic echo
@@ -107,7 +110,7 @@ default simulation has the same gap.
 
 **Ground truth moved.** Classic's `gazebo_ros_state` plugin and `/model_states`
 have no Harmonic equivalent. The `gz` branch of the URDF runs
-`gz-sim-odometry-publisher-system` instead, bridged to `/ground_truth/odom`.
+`gz-sim-odometry-publisher-system` instead, bridged to `/hege/ground_truth/odom`.
 `localization_monitor.py` listens for both and uses whichever arrives, and its
 `gazebo_msgs` import is now optional so it still starts on a machine without
 the Classic messages.

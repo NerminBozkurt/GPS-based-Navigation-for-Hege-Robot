@@ -132,6 +132,13 @@
   <xacro:property name="front_wheel_radius" value="0.28"/>
   <xacro:property name="rear_wheel_radius"  value="0.40"/>
   <xacro:property name="wheel_width"        value="0.2"/>
+
+  <!-- Tyre friction, longitudinal and lateral. The lateral one is the more
+       interesting of the two: it sets how far the tyres scrub sideways in a
+       corner, which is the whole difference between the 2.71 m geometric
+       turning radius and the larger one the rover actually drives. -->
+  <xacro:property name="wheel_mu_longitudinal" value="0.8"/>
+  <xacro:property name="wheel_mu_lateral"      value="0.8"/>
   
   <!-- Front and rear tracks are equal; the wheel sizes are what differ. -->
   <xacro:property name="wheelbase"   value="1.90"/>
@@ -201,9 +208,16 @@
   <xacro:macro name="wheel_surface" params="link">
     <gazebo reference="${link}">
       <!-- Friction. Tractor tyres on soil, and this is the knob behind the
-           rover turning less sharply than commanded. -->
-      <mu1>1.0</mu1>
-      <mu2>1.0</mu2>
+           rover turning less sharply than commanded: lateral grip is what
+           decides how much the tyres scrub in a corner, and therefore how much
+           wider the achieved circle is than the geometric one.
+
+           Both 0.8, matching oguzissik/hege_gps_navigation. They were 1.0/1.0
+           here, and the measured radii in nav2_params.yaml come from that -
+           lowering lateral grip widens the circle, so those numbers are now
+           pending a re-measure. -->
+      <mu1>${wheel_mu_longitudinal}</mu1>
+      <mu2>${wheel_mu_lateral}</mu2>
       <!-- Contact stiffness and damping, scaled with the vehicle. At the
            1e6 that suited a 15 kg model, 1300 kg pushes the wheels into the
            ground far enough to change the effective radius and therefore the
@@ -243,10 +257,24 @@
                        cx="${base_com_x}" cz="${base_com_z}"/>
   </link>
 
+  <!-- base_footprint sits at the REAR AXLE, on the ground - not under the
+       middle of the vehicle. base_link is therefore wheelbase/2 forward of it.
+
+       The rear axle is the reference point of the bicycle model, and it is the
+       point ackermann_steering_controller computes its odometry about, so
+       base_frame_id: base_footprint only means what it says with the frame
+       here. Following oguzissik/hege_gps_navigation.
+
+       Two things downstream are defined about this frame and had to move with
+       it: Nav2's footprint polygon in nav2_params.yaml, which is now measured
+       from the rear axle rather than the centre, and the turning radii in the
+       same file - a circle traced by the rear axle is smaller than the one
+       traced by the vehicle centre by sqrt(R^2 + (L/2)^2) - R, about 0.1 m at
+       these radii. -->
   <joint name="base_joint" type="fixed">
     <parent link="base_footprint"/>
     <child  link="base_link"/>
-    <origin xyz="0 0 ${base_z}"/>
+    <origin xyz="${wheelbase/2} 0 ${base_z}"/>
   </joint>
 
   <!-- ============ REAR (driven) WHEELS ============ -->
@@ -517,8 +545,8 @@
       <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
         <odom_frame>world</odom_frame>
         <robot_base_frame>base_footprint</robot_base_frame>
-        <odom_topic>/ground_truth/odom</odom_topic>
-        <tf_topic>/ground_truth/tf_unused</tf_topic>
+        <odom_topic>/hege/ground_truth/odom</odom_topic>
+        <tf_topic>/hege/ground_truth/pose</tf_topic>
         <odom_publish_frequency>50</odom_publish_frequency>
         <dimensions>3</dimensions>
       </plugin>
