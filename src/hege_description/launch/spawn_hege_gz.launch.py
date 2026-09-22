@@ -137,12 +137,34 @@ def launch_setup(context, *args, **kwargs):
             # Without this every node with use_sim_time waits forever.
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU',
+            # Bridged to /gps/fix_raw and remapped below: Gazebo publishes the
+            # fix with no covariance at all, and sim_gps_covariance fills it in
+            # before anything downstream sees it.
             '/gps/fix@sensor_msgs/msg/NavSatFix[gz.msgs.NavSat',
             # Ground truth for localization_monitor.py. Replaces Classic's
             # /model_states. Nothing in the navigation stack may consume it.
             '/ground_truth/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
         ],
+        remappings=[('/gps/fix', '/gps/fix_raw')],
         parameters=[{'use_sim_time': use_sim_time}],
+    )
+
+    # The noise configured in the xacro is in degrees, because that is what the
+    # Harmonic NavSat sensor wants; these two are the same quantity in metres,
+    # which is what a covariance has to be. Keep them in step with gps_noise.
+    gps_covariance = Node(
+        package='hege_description',
+        executable='sim_gps_covariance.py',
+        name='sim_gps_covariance',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'input_topic': '/gps/fix_raw',
+            'output_topic': '/gps/fix',
+            'horizontal_stddev_m': 0.02,
+            'vertical_stddev_m': 0.04,
+            'origin_latitude_deg': 52.466,
+        }],
     )
 
     # Controllers can only be spawned once gz_ros2_control has come up with the
@@ -178,6 +200,7 @@ def launch_setup(context, *args, **kwargs):
         gz_sim,
         robot_state_publisher,
         bridge,
+        gps_covariance,
         spawn_entity,
         RegisterEventHandler(OnProcessExit(
             target_action=spawn_entity,

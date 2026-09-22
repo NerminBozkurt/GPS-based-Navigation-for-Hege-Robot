@@ -49,6 +49,23 @@
        route, and read the error off the localization monitor. -->
   <xacro:property name="gps_noise" value="0.02"/>
 
+  <!-- UNITS TRAP. Gazebo Classic's <gps> sensor takes horizontal noise in
+       METRES. Gazebo Harmonic's <navsat> sensor does not: gz-sensors8 applies
+       the value straight to Latitude().Degree() and Longitude().Degree(), so
+       it is in DEGREES. Feeding gps_noise to it unconverted asks for 0.02
+       degrees of error, which is 2.2 km - and nothing warns, the fix just
+       becomes noise. The gz branch below divides by this; the Classic branch
+       must not.
+
+       Found by Oguzhan Enes Isik in oguzissik/hege_gps_navigation.
+
+       A consequence worth knowing: the same ANGULAR noise on both axes is not
+       the same METRIC noise, because one degree of longitude is cos(latitude)
+       fewer metres than one of latitude. At this site that makes the east
+       error about 0.61 of the north one. sim_gps_covariance.py carries that
+       into the covariance it publishes. -->
+  <xacro:property name="metres_per_latitude_degree" value="111195.0"/>
+
   <!-- Gyro and accelerometer bias. A real MEMS IMU's dominant error is not
        white noise but a bias drawn at startup that then wanders, and that is
        what makes dead reckoning fall apart. Leaving these at zero, as this
@@ -471,9 +488,14 @@
         <visualize>false</visualize>
         <navsat>
           <position_sensing>
+            <!-- DEGREES here, not metres - see metres_per_latitude_degree at
+                 the top of this file. The Classic sensor above takes the same
+                 quantity in metres, which is exactly what makes this easy to
+                 get wrong. -->
             <horizontal>
-              <noise type="gaussian"><mean>0.0</mean><stddev>${gps_noise}</stddev></noise>
+              <noise type="gaussian"><mean>0.0</mean><stddev>${gps_noise / metres_per_latitude_degree}</stddev></noise>
             </horizontal>
+            <!-- Vertical noise IS in metres, in both simulators. -->
             <vertical>
               <noise type="gaussian"><mean>0.0</mean><stddev>${gps_noise * 2}</stddev></noise>
             </vertical>

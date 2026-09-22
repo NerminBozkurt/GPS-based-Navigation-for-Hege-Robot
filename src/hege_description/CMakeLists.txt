@@ -16,7 +16,9 @@ install(
 )
 
 install(
-  PROGRAMS scripts/cmd_vel_relay.py
+  PROGRAMS
+    scripts/cmd_vel_relay.py
+    scripts/sim_gps_covariance.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

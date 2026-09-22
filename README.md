@@ -116,6 +116,24 @@ The measured turning radii in `nav2_params.yaml` — 4.20 m at 0.6 m/s, 4.64 at
 re-measured. The geometric minimum moved from 2.79 m to 2.71 m; the achievable
 one may have moved too.
 
+Three later changes in that repository are **not** adopted here, because each
+would move something this stack was measured against and the reasoning behind
+them is not written down:
+
+- `base_footprint` shifted 0.95 m so it sits at the rear axle rather than the
+  vehicle centre. That is arguably the right reference point for Ackermann
+  odometry, but Nav2's footprint polygon and `robot_base_frame` here are both
+  defined about the centre, so adopting it means re-deriving those.
+- Lateral wheel friction lowered from 1.0 to 0.8, which changes tyre slip and
+  therefore the achievable turning radius — the number that is already pending
+  a re-measure.
+- A `hege_evaluation` package with a GPS noise evaluator that scores the
+  simulated fix against ground truth. `localization_monitor.py` here already
+  does a comparable job; the two should probably be reconciled rather than run
+  side by side.
+
+Worth asking Oğuzhan about the first one in particular.
+
 ## Packages
 
 | Package | What it is |
@@ -289,6 +307,13 @@ which is RTK **Fixed**. The best achieved on hardware so far is Float at 0.22 m,
 so the simulation is currently more optimistic than the real receiver. Raise
 `gps_noise` to 0.4 to see what the localization does under the fix actually
 available.
+
+That one property drives both simulators, but not in the same units — Classic's
+`<gps>` sensor takes metres and Harmonic's `<navsat>` takes degrees, so the
+Harmonic branch divides by `metres_per_latitude_degree`. Getting that wrong
+turns 2 cm of noise into 2.2 km with no warning at all, which is why
+`src/hege_description/test/` checks both branches describe the same error on
+the ground.
 
 ## Safety
 
