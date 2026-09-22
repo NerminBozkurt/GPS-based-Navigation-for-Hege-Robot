@@ -76,8 +76,8 @@ step by hand:
 
 | Quantity | xacro | PX4 airframe | bridge config |
 |---|---|---|---|
-| Wheelbase | `wheelbase` 1.91 | `RA_WHEEL_BASE` 1.91 | `wheel_base` 1.91 |
-| Max steering | `max_steer` 0.6 rad | `RA_MAX_STR_ANG` 0.6 rad, `SIM_GZ_SV_MAXA1` 34.38 deg | `max_steering_angle` 0.6 |
+| Wheelbase | `wheelbase` 1.90 | `RA_WHEEL_BASE` 1.90 | `wheel_base` 1.90 |
+| Max steering | `max_steer` 0.611 rad | `RA_MAX_STR_ANG` 0.611 rad, `SIM_GZ_SV_MAXA1` 35 deg | `max_steering_angle` 0.611 |
 | Heading gain | — | `RO_YAW_P` 3 | `px4_yaw_p` 3.0 |
 
 The third column matters most. The bridge asks PX4 for a yaw rate by offsetting
@@ -100,22 +100,36 @@ depends on it being right.
 
 ## Setting it up
 
-Once, in the devcontainer, with a PX4 v1.16.1 checkout that has its submodules
-initialised (`Tools/simulation/gz` is one):
+All of this happens **inside the devcontainer** in `.devcontainer/`. That
+container exists precisely because of the conflict above: it carries Gazebo
+Harmonic, PX4's build toolchain and the Micro XRCE-DDS Agent, while the host
+keeps Gazebo Classic and the navigation simulation. Open the repository in
+VS Code and run **Dev Containers: Reopen in Container**.
 
-    cd src/hege_px4_sim
-    ./scripts/generate_hege_model.sh
-    ./scripts/install_to_px4.sh ~/PX4-Autopilot
+`post-create.sh` runs by itself on first open and handles `px4_msgs`,
+the source build of `gz_ros2_control` and the workspace build. PX4 itself is a
+separate, deliberate step because it is around 2 GB:
 
-The install symlinks the model into `Tools/simulation/gz/models/hege_rover`,
-copies the airframe into the ROMFS and registers it in the airframe
-`CMakeLists.txt`. `--uninstall` reverses all three. Then:
+    bash .devcontainer/setup-px4.sh
 
-    cd ~/PX4-Autopilot
+That clones PX4 v1.16.1 with its submodules (`Tools/simulation/gz` is one, and
+it carries the models PX4 spawns), generates `model.sdf` from the xacro, and
+installs the airframe. The install symlinks the model into
+`Tools/simulation/gz/models/hege_rover`, copies `4100_gz_hege_rover` into the
+ROMFS and registers it in the airframe `CMakeLists.txt`; `--uninstall`
+reverses all three. Then:
+
+    cd PX4-Autopilot
     make px4_sitl gz_hege_rover
 
 The first build after registering an airframe regenerates the ROMFS and is
 slower than an incremental one.
+
+To do it by hand instead, on a machine that already has Harmonic:
+
+    cd src/hege_px4_sim
+    ./scripts/generate_hege_model.sh
+    ./scripts/install_to_px4.sh <path-to-PX4-Autopilot>
 
 ## Running it
 

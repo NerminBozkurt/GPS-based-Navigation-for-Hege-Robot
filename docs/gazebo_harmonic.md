@@ -75,9 +75,42 @@ moving west. Its comment said to recheck the value whenever the simulator
 changed, and that if the bug were ever fixed the compensation would become the
 bug. Harmonic does not have the mirroring, so the Harmonic world uses 0.
 
+**The GPS sensor changed units, and nothing says so.** Gazebo Classic's `<gps>`
+sensor takes horizontal position noise in **metres**. Harmonic's `<navsat>`
+sensor applies the same field straight to `Latitude().Degree()` and
+`Longitude().Degree()` — it is in **degrees**. Carrying the value across
+unchanged asked for 0.02 degrees of error, which is 2.2 km, and neither
+simulator warns: the fix simply becomes noise.
+
+The xacro now divides by `metres_per_latitude_degree` in the `gz` branch and
+leaves the Classic branch alone. This was found by Oğuzhan Enes Işık in
+oguzissik/hege_gps_navigation, and `src/hege_description/test/` has regression
+tests for it — including one that expands both branches and checks they
+describe the same error in metres.
+
+A consequence that follows from the same fact: equal *angular* noise on both
+axes is not equal *metric* noise, because one degree of longitude is
+cos(latitude) fewer metres than one of latitude. At this site the east error is
+about 0.61 of the north one.
+
+**GPS covariance had to be added.** Gazebo publishes the fix with
+`position_covariance` all zeros and `COVARIANCE_TYPE_UNKNOWN`.
+`navsat_transform` carries that into `/odometry/gps`, and the global EKF uses
+it to decide how far to move towards each fix — so it was guessing. The bridge
+now publishes to `/gps/fix_raw` and `hege_evaluation`'s `sim_gps_covariance`
+republishes it on `/gps/fix` with the covariance the noise settings imply,
+anisotropy included. The same package's `gps_noise_evaluator` scores the fix
+against ground truth and reports on `/hege/evaluation/gps_noise`, which is how
+you find out the GPS is not the error you configured.
+
+Worth checking on the Classic path too: whether `libgazebo_ros_gps_sensor`
+fills the covariance is not something this port established. `ros2 topic echo
+/gps/fix --once` and look at `position_covariance_type` — if it is 0, the
+default simulation has the same gap.
+
 **Ground truth moved.** Classic's `gazebo_ros_state` plugin and `/model_states`
 have no Harmonic equivalent. The `gz` branch of the URDF runs
-`gz-sim-odometry-publisher-system` instead, bridged to `/ground_truth/odom`.
+`gz-sim-odometry-publisher-system` instead, bridged to `/hege/ground_truth/odom`.
 `localization_monitor.py` listens for both and uses whichever arrives, and its
 `gazebo_msgs` import is now optional so it still starts on a machine without
 the Classic messages.
