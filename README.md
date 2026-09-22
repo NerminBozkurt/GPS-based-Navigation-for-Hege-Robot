@@ -47,9 +47,16 @@ stays the single source of the vehicle's geometry.
 
 The catch is that the first block runs Gazebo **Classic** and PX4 SITL requires
 Gazebo **Harmonic**, and the two cannot be installed on the same machine —
-their packages conflict outright. So `spawn_hege_gz.launch.py` is the same
-navigation simulation ported to Harmonic, for a machine set up for the PX4
-side. `docs/gazebo_harmonic.md` covers that port and what to install.
+their packages conflict outright.
+
+So the PX4 side runs in the devcontainer in `.devcontainer/`, which carries
+Harmonic, PX4's toolchain and the Micro XRCE-DDS Agent, while the host keeps
+Classic and the navigation simulation. Open the repository in VS Code and run
+**Dev Containers: Reopen in Container**; `post-create.sh` does the rest, and
+`bash .devcontainer/setup-px4.sh` fetches PX4 when you want it.
+
+The container also runs `spawn_hege_gz.launch.py`, the same navigation
+simulation ported to Harmonic. `docs/gazebo_harmonic.md` covers that port.
 
 ## Docs
 

@@ -1,0 +1,77 @@
+{
+  "name": "Hege PX4 / Gazebo Harmonic",
+
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "USERNAME": "ros",
+      "USER_UID": "1000",
+      "USER_GID": "1000"
+    }
+  },
+
+  // The repository root is the colcon workspace, so it mounts as-is and
+  // HEGE_WS below points straight at it. build/, install/ and log/ land in the
+  // bind mount, which means a build inside the container and a build on the
+  // host overwrite each other - pick one and stay with it.
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  "remoteUser": "ros",
+  "updateRemoteUserUID": true,
+
+  "runArgs": [
+    // host networking so the uXRCE-DDS agent, PX4 SITL and ROS 2 discovery all
+    // see each other without port mapping.
+    "--network=host",
+    "--ipc=host",
+    "--env=DISPLAY=${localEnv:DISPLAY}"
+
+    // NVIDIA GPU: add these two lines to the list above (mind the comma on the
+    // line before) for hardware rendering in Gazebo and RViz. They need the
+    // nvidia-container-toolkit installed on the host, and the container will
+    // REFUSE TO START if it is not - which is why they are off by default.
+    //
+    //   "--gpus=all",
+    //   "--runtime=nvidia"
+  ],
+
+  "mounts": [
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind"
+  ],
+
+  "containerEnv": {
+    "QT_X11_NO_MITSHM": "1",
+    "HEGE_WS": "/workspaces/${localWorkspaceFolderBasename}",
+
+    // PX4 SITL defaults to domain 0. The real robot uses 73; that is set by
+    // hege_bringup's real.launch.py rather than here.
+    "ROS_DOMAIN_ID": "0",
+
+    // Keeps this container's ROS traffic off the host's network even with
+    // --network=host, so a node in here cannot quietly talk to a node on the
+    // host's Gazebo Classic simulation and confuse both.
+    "ROS_LOCALHOST_ONLY": "1"
+
+    // With the GPU lines above enabled, add:
+    //   "NVIDIA_VISIBLE_DEVICES": "all",
+    //   "NVIDIA_DRIVER_CAPABILITIES": "all"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-python.python",
+        "ms-vscode.cpptools",
+        "redhat.vscode-xml"
+      ],
+      "settings": {
+        "python.terminal.activateEnvironment": false,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}
