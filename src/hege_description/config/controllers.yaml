@@ -48,10 +48,10 @@ ackermann_steering_controller:
     # --- measured Hege geometry (see note at top of file) ---
     # Front and rear wheels are different sizes (27 cm vs 40 cm) and the tracks
     # differ slightly, so none of these may be collapsed into a single value.
-    wheelbase: 1.91
+    wheelbase: 1.90
     front_wheel_track: 1.55
-    rear_wheel_track: 1.50
-    front_wheels_radius: 0.27
+    rear_wheel_track: 1.55
+    front_wheels_radius: 0.28
     rear_wheels_radius: 0.40
 
     odom_frame_id: odom

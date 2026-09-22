@@ -71,11 +71,11 @@
   <xacro:property name="base_length"   value="2.2"/>
   <xacro:property name="base_width"    value="1.4"/>
   <xacro:property name="base_height"   value="0.8"/>
-  <!-- Mass. The real machine is 1200 kg. Wheel and knuckle masses are
+  <!-- Mass. The real machine is 1300 kg. Wheel and knuckle masses are
        estimates for tractor-style wheels; the chassis takes whatever is left,
        so the total always comes out at total_mass no matter which of these is
        edited. -->
-  <xacro:property name="total_mass"        value="1200.0"/>
+  <xacro:property name="total_mass"        value="1300.0"/>
   <xacro:property name="rear_wheel_mass"   value="80.0"/>
   <xacro:property name="front_wheel_mass"  value="45.0"/>
   <xacro:property name="steer_link_mass"   value="15.0"/>
@@ -108,23 +108,24 @@
   <xacro:property name="body_z_offset" value="0.4"/>
   <xacro:property name="base_z"        value="1.10"/>
 
-  <!-- Front and rear wheels are DIFFERENT sizes on Hege: 27 cm front, 40 cm
+  <!-- Front and rear wheels are DIFFERENT sizes on Hege: 28 cm front, 40 cm
        rear. Everything downstream has to respect that - the axle heights below
        are derived from each radius so both pairs touch the ground, and
        controllers.yaml carries the two radii separately. -->
-  <xacro:property name="front_wheel_radius" value="0.27"/>
+  <xacro:property name="front_wheel_radius" value="0.28"/>
   <xacro:property name="rear_wheel_radius"  value="0.40"/>
   <xacro:property name="wheel_width"        value="0.2"/>
   
-  <!-- Front and rear tracks also differ slightly. -->
-  <xacro:property name="wheelbase"   value="1.91"/>
+  <!-- Front and rear tracks are equal; the wheel sizes are what differ. -->
+  <xacro:property name="wheelbase"   value="1.90"/>
   <xacro:property name="front_track" value="1.55"/>
-  <xacro:property name="rear_track"  value="1.50"/>
+  <xacro:property name="rear_track"  value="1.55"/>
 
-  <!-- STILL UNMEASURED. Minimum turning radius is wheelbase/tan(max_steer),
-       so at 1.91 m wheelbase this value sets it to 2.79 m - nearly three times
-       the old placeholder geometry. Nav2's controller tuning depends on it. -->
-  <xacro:property name="max_steer" value="0.6"/>   <!-- ~34 deg -->
+  <!-- Minimum turning radius is wheelbase/tan(max_steer), so at 1.90 m
+       wheelbase this sets it to 2.71 m. Nav2's controller tuning depends on
+       it - though Nav2 is held to 6.0 m, which is what the rover was measured
+       to actually achieve once tyre slip is in play. -->
+  <xacro:property name="max_steer" value="0.610865238"/>   <!-- 35 deg -->
 
   <!-- Axle heights relative to base_link, derived so each wheel rests on the
        ground given its own radius. -->
@@ -187,7 +188,7 @@
       <mu1>1.0</mu1>
       <mu2>1.0</mu2>
       <!-- Contact stiffness and damping, scaled with the vehicle. At the
-           1e6 that suited a 15 kg model, 1200 kg pushes the wheels into the
+           1e6 that suited a 15 kg model, 1300 kg pushes the wheels into the
            ground far enough to change the effective radius and therefore the
            odometry. -->
       <kp>10000000.0</kp>
@@ -201,7 +202,7 @@
     <!-- Massless everywhere except px4 mode. There the base_joint below is
          preserved through SDF conversion, which leaves base_footprint as a
          real root link, and gz-sim wants a root link to have an inertia. It is
-         1e-4 kg against 1200 kg, so it changes neither the total mass nor the
+         1e-4 kg against 1300 kg, so it changes neither the total mass nor the
          centre of mass in any way that survives rounding. -->
     <xacro:if value="${drive == 'px4'}">
       <inertial>
@@ -278,7 +279,7 @@
       <origin xyz="${wheelbase/2} ${y_sign*front_track/2} ${front_axle_z}"/>
       <axis xyz="0 0 1"/>
       <!-- Effort scaled with the vehicle. 100 Nm, sized for the old 15 kg
-           placeholder, cannot turn the front axle of a 1200 kg machine against
+           placeholder, cannot turn the front axle of a 1300 kg machine against
            tyre scrub; the steering simply would not reach its commanded angle.
            Velocity limited to roughly lock to lock in a second and a half,
            which is about what a real steering actuator manages. -->
@@ -745,7 +746,7 @@
          outer wheels should differ - but it is exactly what PX4's own rover
          model does, and the error is small at the turning radii this vehicle
          can reach. The gains are PX4's; raise them if the steering visibly
-         lags the commanded angle on a 1200 kg vehicle. -->
+         lags the commanded angle on a 1300 kg vehicle. -->
     <gazebo>
       <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
         <joint_name>left_steer_joint</joint_name>

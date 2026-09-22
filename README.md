@@ -70,13 +70,13 @@ derived from it.
 | Parameter | Value |
 |---|---:|
 | Steering geometry | Ackermann, rear-wheel drive |
-| Wheelbase | 1.91 m |
+| Wheelbase | 1.90 m |
 | Front track | 1.55 m |
-| Rear track | 1.50 m |
-| Front wheel radius | 0.27 m |
+| Rear track | 1.55 m |
+| Front wheel radius | 0.28 m |
 | Rear wheel radius | 0.40 m |
-| Maximum steering angle | 0.60 rad (34.4°) |
-| Total mass | 1200 kg |
+| Maximum steering angle | 0.611 rad (35°) |
+| Total mass | 1300 kg |
 | Front axle load share | 40 % |
 | `base_link` height | 1.10 m |
 | IMU height | 1.20 m |
@@ -85,32 +85,36 @@ derived from it.
 Minimum turning radius from the bicycle model:
 
 ```text
-R_min = L / tan(delta_max) = 1.91 / tan(0.60) = 2.79 m
+R_min = L / tan(delta_max) = 1.90 / tan(0.611) = 2.71 m
 ```
 
-Nav2 is held to **6.0 m** rather than 2.79, because that is what the rover was
+Nav2 is held to **6.0 m** rather than 2.71, because that is what the rover was
 measured to actually achieve — the geometric minimum assumes no tyre slip.
 
-### Open: the two repositories disagree
+### Reconciled with oguzissik
 
-These numbers differ from the ones in
+These numbers used to differ from
 [oguzissik/hege_gps_navigation](https://github.com/oguzissik/hege_gps_navigation),
-where the PX4 packages came from. Both were described as measured, so one set
-is wrong and it is worth settling before the real vehicle moves:
+where the PX4 packages came from — rear track, front wheel radius, steering
+limit and 100 kg of mass. Both sets were described as measured. The values
+above are now that repository's `VERIFIED MEASUREMENTS` block, adopted
+wholesale, so the two agree.
 
-| Parameter | Here | oguzissik |
-|---|---:|---:|
-| Rear track | 1.50 m | 1.55 m |
-| Front wheel radius | 0.27 m | 0.28 m |
-| Total mass | **1200 kg** | **1300 kg** |
-| Max steering angle | 0.600 rad | 0.611 rad |
-| Wheelbase | 1.91 m | 1.90 m |
+Two things left over from the reconciliation:
 
-The wheelbase and steering angle differences are within measurement noise and
-change the turning radius by 8 cm (2.79 m against 2.71 m). The mass
-differs by 8 %, which changes
-inertia, braking distance and tyre loading, and the rear track by 5 cm, which
-changes the Ackermann kinematics the controller solves. Re-measure both.
+- oguzissik's own repository carries **1.90 m** in its xacro and **1.91 m** in
+  `bridge_real.yaml`, and its README says "1.90–1.91 m". This repository uses
+  1.90 everywhere, from the xacro. It changes the turning radius by under a
+  centimetre, but the number should be settled rather than left as a range.
+- The wheel and knuckle masses are still ours (80/45/15 kg). They are estimates
+  in both repositories, not measurements, and ours were tuned for solver
+  stability — a large mass ratio across a joint makes ODE diverge. Only the
+  1300 kg total is measured, and the chassis absorbs the difference.
+
+The measured turning radii in `nav2_params.yaml` — 4.20 m at 0.6 m/s, 4.64 at
+1.0, 5.44 at 1.5 — were taken **before** this change and have not been
+re-measured. The geometric minimum moved from 2.79 m to 2.71 m; the achievable
+one may have moved too.
 
 ## Packages
 

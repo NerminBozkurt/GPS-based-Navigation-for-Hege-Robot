@@ -76,8 +76,8 @@ step by hand:
 
 | Quantity | xacro | PX4 airframe | bridge config |
 |---|---|---|---|
-| Wheelbase | `wheelbase` 1.91 | `RA_WHEEL_BASE` 1.91 | `wheel_base` 1.91 |
-| Max steering | `max_steer` 0.6 rad | `RA_MAX_STR_ANG` 0.6 rad, `SIM_GZ_SV_MAXA1` 34.38 deg | `max_steering_angle` 0.6 |
+| Wheelbase | `wheelbase` 1.90 | `RA_WHEEL_BASE` 1.90 | `wheel_base` 1.90 |
+| Max steering | `max_steer` 0.611 rad | `RA_MAX_STR_ANG` 0.611 rad, `SIM_GZ_SV_MAXA1` 35 deg | `max_steering_angle` 0.611 |
 | Heading gain | — | `RO_YAW_P` 3 | `px4_yaw_p` 3.0 |
 
 The third column matters most. The bridge asks PX4 for a yaw rate by offsetting

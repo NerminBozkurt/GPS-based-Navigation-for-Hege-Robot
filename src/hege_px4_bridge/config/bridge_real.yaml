@@ -1,7 +1,8 @@
 # Bridge parameters for the real HEGE rover (Pixhawk 6X, PX4 v1.16.1 rover build).
 #
-# Geometry below uses the operator-provided measurements: 1.91 m wheelbase and
-# approximately 35 degrees maximum steering. Verify both mechanically and set
+# Geometry below uses the operator-provided measurements: 1.90 m wheelbase and
+# 35 degrees maximum steering. Kept in step with hege.urdf.xacro, which is this
+# repository's single source of truth for the vehicle. Verify both mechanically and set
 # them consistently in PX4
 # !!! (QGroundControl) and here. The bridge refuses to start while required
 # !!! geometry/gain values are 0.
@@ -17,7 +18,7 @@ hege_px4_bridge:
     status_timeout: 2.0           # VehicleStatus is normally published at only 2 Hz
     attitude_timeout: 0.5         # high-rate stream; stale sooner than status
     command_ack_timeout: 1.5      # Trigger services fail unless a final ACK arrives
-    wheel_base: 1.91              # operator measurement = RA_WHEEL_BASE [m]
+    wheel_base: 1.90              # operator measurement = RA_WHEEL_BASE [m]
     max_steering_angle: 0.610865  # approx 35 deg = RA_MAX_STR_ANG [rad]
     max_speed: 0.3                # start very low for the lifted-wheels test; must be <= RO_SPEED_LIM
     max_yaw_rate: 0.10            # conservative first test; kinematic max is about 0.11 rad/s at 0.3 m/s

@@ -13,7 +13,7 @@ planner_server:
       plugin: "nav2_smac_planner/SmacPlannerHybrid"
       motion_model_for_search: "DUBIN"
 
-      # L/tan(delta_max) = 1.91/tan(35 deg) = 2.73 m physically.
+      # L/tan(delta_max) = 1.90/tan(35 deg) = 2.71 m physically.
       # The first-test yaw cap is 0.10 rad/s at 0.30 m/s, so use the safer
       # operational radius v/omega = 3.0 m until controller tracking is proven.
       minimum_turning_radius: 3.0

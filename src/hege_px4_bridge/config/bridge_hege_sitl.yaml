@@ -17,8 +17,8 @@ hege_px4_bridge:
     attitude_timeout: 0.5
     command_ack_timeout: 1.5
 
-    wheel_base: 1.91              # = RA_WHEEL_BASE   [m]
-    max_steering_angle: 0.6       # = RA_MAX_STR_ANG  [rad], 34.4 deg
+    wheel_base: 1.90              # = RA_WHEEL_BASE   [m]
+    max_steering_angle: 0.610865  # = RA_MAX_STR_ANG  [rad], 35 deg
 
     # Matches desired_linear_vel in nav2_params.yaml, so Nav2 runs at the speed
     # its lookahead and turning radius were measured against. Well below the
@@ -26,7 +26,7 @@ hege_px4_bridge:
     max_speed: 1.0
 
     # The kinematic ceiling at 1.0 m/s is v * tan(delta_max) / L
-    # = 1.0 * tan(0.6) / 1.91 = 0.358 rad/s, so this is the real constraint
+    # = 1.0 * tan(0.610865) / 1.90 = 0.369 rad/s, so this is the real constraint
     # rather than an arbitrary cap. Nav2's 6.0 m minimum turning radius only
     # ever asks for 1.0/6.0 = 0.167 rad/s, so it never reaches this limit.
     max_yaw_rate: 0.35

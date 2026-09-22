@@ -27,17 +27,17 @@ param set-default NAV_ACC_RAD 2.0
 
 # ---------------------------------------------------------------- geometry
 # = wheelbase and max_steer in hege.urdf.xacro. RA_MAX_STR_ANG is in radians;
-# 0.6 rad = 34.4 deg, which gives a geometric minimum turning radius of
-# 1.91 / tan(0.6) = 2.79 m.
-param set-default RA_WHEEL_BASE 1.91
-param set-default RA_MAX_STR_ANG 0.6
+# 0.610865 rad = 35 deg, which gives a geometric minimum turning radius of
+# 1.90 / tan(0.610865) = 2.71 m.
+param set-default RA_WHEEL_BASE 1.90
+param set-default RA_MAX_STR_ANG 0.610865
 
 # Steering rate, deg/s. The URDF limits the steer joints to 0.8 rad/s, so
 # anything above 45 deg/s here asks for motion the simulated actuator refuses
 # to produce and the controller winds up against a limit it cannot see.
 param set-default RA_STR_RATE_LIM 45
 
-# Acceptance radius scaling for cornering, sized for a 2.79 m turning circle.
+# Acceptance radius scaling for cornering, sized for a 2.71 m turning circle.
 param set-default RA_ACC_RAD_GAIN 2
 param set-default RA_ACC_RAD_MAX 6
 
@@ -54,15 +54,16 @@ param set-default RA_ACC_RAD_MAX 6
 param set-default RO_MAX_THR_SPEED 3.2
 param set-default RO_SPEED_LIM 3.0
 
-# 1200 kg does not accelerate like PX4's 20 kg demo rover, which uses 3 and 6.
+# 1300 kg does not accelerate like PX4's 20 kg demo rover, which uses 3 and 6.
 param set-default RO_ACCEL_LIM 0.5
 param set-default RO_DECEL_LIM 1.0
 param set-default RO_JERK_LIM 2
 
 # Yaw rate limit, deg/s. The kinematic ceiling is v * tan(delta_max) / L, so at
-# the 3.0 m/s speed limit that is 3.0 * tan(0.6) / 1.91 = 1.07 rad/s = 61 deg/s.
-# Asking for more than the front wheels can deliver just saturates the steering.
-param set-default RO_YAW_RATE_LIM 60
+# the 3.0 m/s speed limit that is 3.0 * tan(0.610865) / 1.90 = 1.11 rad/s
+# = 63 deg/s. Asking for more than the front wheels can deliver just
+# saturates the steering.
+param set-default RO_YAW_RATE_LIM 63
 param set-default RO_YAW_RATE_P 1
 param set-default RO_YAW_RATE_I 0.1
 
@@ -91,10 +92,10 @@ param set-default SIM_GZ_WH_MIN1 92
 param set-default SIM_GZ_WH_MAX1 108
 
 # Steering, in DEGREES here while RA_MAX_STR_ANG above is in radians.
-# 34.38 deg = 0.6 rad = the URDF's steer joint limit. All three agree.
+# 35 deg = 0.610865 rad = the URDF's steer joint limit. All three agree.
 param set-default SIM_GZ_SV_FUNC1 201
-param set-default SIM_GZ_SV_MAXA1 34.38
-param set-default SIM_GZ_SV_MINA1 -34.38
+param set-default SIM_GZ_SV_MAXA1 35.0
+param set-default SIM_GZ_SV_MINA1 -35.0
 param set-default CA_SV_CS_COUNT 1
 
 # The URDF steer joints turn counter-clockwise for a positive angle, which is
