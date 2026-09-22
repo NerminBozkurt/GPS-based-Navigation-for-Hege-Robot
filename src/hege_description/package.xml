@@ -17,10 +17,22 @@
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>joint_state_broadcaster</exec_depend>
   <exec_depend>ackermann_steering_controller</exec_depend>
-  <exec_depend>gazebo_ros2_control</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
-  <exec_depend>gazebo_ros</exec_depend>
-  <exec_depend>gazebo_plugins</exec_depend>
+  <!-- NEITHER Gazebo generation is declared here, and that is deliberate.
+       rosdep would resolve each name to the wrong thing and then uninstall
+       what is already working:
+
+         ros_gz_sim, ros_gz_bridge, gz_ros2_control  ->  the ROS 2 Humble
+           binaries, which are built against Gazebo FORTRESS. Humble's official
+           Gazebo pairing is Fortress, not Harmonic. Installing them next to
+           Harmonic pulls in a second, conflicting Gazebo.
+
+         gazebo_ros, gazebo_plugins, gazebo_ros2_control  ->  Gazebo CLASSIC,
+           which conflicts with Harmonic outright: both ship /usr/bin/gz, so
+           apt removes one to install the other.
+
+       docs/gazebo_harmonic.md says what to install for each path and why it
+       has to be done by hand. -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 

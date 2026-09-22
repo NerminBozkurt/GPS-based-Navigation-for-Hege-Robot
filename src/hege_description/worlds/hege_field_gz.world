@@ -1,0 +1,99 @@
+<?xml version="1.0"?>
+<!-- The Hege field, for Gazebo HARMONIC.
+
+     hege_field.world next to this one is the Gazebo Classic original. The two
+     describe the same place and must keep describing the same place: the
+     latitude and longitude here, the datum in hege_localization's
+     dual_ekf_navsat.yaml and the fallback in gps_waypoint_follower all have to
+     agree, or a waypoint given in latitude/longitude lands somewhere else.
+
+     The differences from the Classic file are not cosmetic. Sensors need
+     system plugins loaded at world level; the ground plane cannot be included
+     from Classic's model database; and heading_deg is not the same number -
+     see below. -->
+<sdf version="1.9">
+  <world name="hege_field">
+
+    <!-- Anchors the simulator's (0,0,0) to a real lat/lon. Without this the
+         NavSat sensor reports 0N 0E and navsat_transform has no sensible
+         datum. Approximate ATB Fieldlab Marquardt (near Potsdam) - replace
+         with the surveyed demo-site coordinates when they are known. -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>52.466</latitude_deg>
+      <longitude_deg>12.958</longitude_deg>
+      <elevation>35.0</elevation>
+
+      <!-- 0 here, 180 in the Classic world, and that difference is deliberate.
+           Gazebo Classic mirrored the local frame when converting to
+           spherical coordinates: a rover driving to world x=+7.6 was reported
+           7.6 m WEST, measured at a ratio of -1.006/-1.002 on both axes, and
+           heading_deg 180 cancelled it. The Classic file says in its own
+           comment that this compensation has to be rechecked whenever the
+           simulator changes, and that if the bug were ever fixed the line
+           would become the bug.
+
+           This is that moment. Harmonic's NavSat implementation does not have
+           the mirroring, so the compensation must NOT be carried over.
+           VERIFY THIS on the first run rather than trusting it: drive east and
+           confirm the reported longitude increases. If it decreases, the
+           mirroring is back and this becomes 180. -->
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <!-- Harmonic loads nothing by default. Physics, UserCommands and
+         SceneBroadcaster are needed for any world at all; Imu and NavSat are
+         what actually make those two sensors in the URDF produce data, and
+         Sensors is what runs any rendering-based sensor. A missing Imu system
+         here is a silent failure: the sensor exists, and publishes nothing. -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <physics name="default_physics" default="true" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- 200 x 200 m, which is a good deal larger than the longest waypoint
+         run in config/waypoints_example.yaml. Friction is left at the default
+         and the wheel contact parameters in the URDF do the work instead, so
+         both simulators see the same tyre behaviour. -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>200 200</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>200 200</size></plane></geometry>
+          <material>
+            <ambient>0.25 0.38 0.20 1</ambient>
+            <diffuse>0.30 0.45 0.25 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <shadows>true</shadows>
+    </scene>
+
+  </world>
+</sdf>

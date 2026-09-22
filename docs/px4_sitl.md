@@ -11,18 +11,21 @@ measured vehicle, with PX4 in the middle.
 
 ## Why the two simulators cannot simply merge
 
-`spawn_hege.launch.py` runs **Gazebo Classic**: `gzserver`, `spawn_entity.py`,
-`libgazebo_ros_*.so`. PX4 v1.16 SITL runs **Gazebo Harmonic**, a different
-simulator with different plugin names, different SDF handling and a different
-launch API. There is no configuration that makes one host the other.
+PX4 v1.16 SITL runs **Gazebo Harmonic**. The ROS simulation originally ran
+**Gazebo Classic** — a different simulator with different plugin names,
+different SDF handling and a different launch API — and there is no
+configuration that makes one host the other.
 
-So the combined setup is the Harmonic one, and the Classic stack stays exactly
-where it is, still runnable, still the place where the Nav2 tuning was
-measured. Nothing in this document changes it.
+Worse, the two cannot even be installed side by side: their Debian packages
+both ship `/usr/bin/gz` and conflict, so installing Harmonic apt-removes the
+whole Classic ROS stack. That is why the ROS simulation was moved to Harmonic
+as well; `docs/gazebo_harmonic.md` covers that port.
+`spawn_hege_classic.launch.py` is the Classic original, kept for reference and
+for a machine dedicated to it.
 
-The second thing that does not carry over is `ros2_control`. PX4 does not use
-it. PX4 owns the actuators, and it writes the wheel and steering joints
-directly over gz-transport. In this path there is no `controller_manager`, no
+The other thing that does not carry over is `ros2_control`. PX4 does not use
+it: PX4 owns the actuators and writes the wheel and steering joints directly
+over gz-transport. In the PX4 path there is no `controller_manager`, no
 `ackermann_steering_controller` and no `cmd_vel_relay`.
 
 ## What the rover looks like to PX4

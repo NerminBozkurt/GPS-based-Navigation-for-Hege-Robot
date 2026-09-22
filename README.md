@@ -25,22 +25,28 @@ real Pixhawk and PX4 SITL in
 [oguzissik/hege_gps_navigation](https://github.com/oguzissik/hege_gps_navigation)
 and brought in from there.
 
-## The two simulations
+## The two ways to run it
 
-    ros2 launch hege_description spawn_hege.launch.py     # Gazebo Classic
+Both are Gazebo Harmonic, on one machine, from one vehicle description.
+
+    ros2 launch hege_description spawn_hege.launch.py
     ros2 launch hege_localization localization.launch.py
     ros2 launch hege_navigation navigation.launch.py rviz:=true
 
-is where the path planning and tracking were developed and measured, and it
-runs exactly as it always did.
+is the navigation simulation: our own Ackermann controller, our own
+localization, Nav2 planning and tracking a GPS route.
 
-    make px4_sitl gz_hege_rover                           # in PX4-Autopilot
+    make px4_sitl gz_hege_rover                     # in PX4-Autopilot
     ros2 launch hege_bringup hege_sitl.launch.py rviz:=true
 
-is the same navigation stack with PX4 in the middle, on Gazebo Harmonic. PX4
-SITL cannot run on Gazebo Classic, so these are two simulators rather than two
-modes of one; `hege.urdf.xacro` serves both through its `drive` argument and
-stays the single source of the vehicle's geometry.
+is the same navigation and localization stack with PX4 in the middle, driving
+the same vehicle through the Pixhawk's own interface.
+
+`hege.urdf.xacro` serves both through its `drive` argument and stays the single
+source of the vehicle's geometry. It also still carries the two Gazebo Classic
+modes, reachable through `spawn_hege_classic.launch.py` — but Classic and
+Harmonic cannot be installed on the same machine, and PX4 requires Harmonic.
+`docs/gazebo_harmonic.md` covers that migration and what to install.
 
 ## Docs
 
@@ -56,6 +62,11 @@ through it.
 model is generated from the same xacro, the sensor and link names PX4 requires,
 how the existing localization and Nav2 launches are reused unchanged, and what
 has and has not been verified.
+
+`docs/gazebo_harmonic.md` covers the move from Gazebo Classic to Harmonic: why
+the two cannot coexist, what changed in the description and the world, what
+deliberately did not change, and what to install — read it before running
+`rosdep install`.
 
 ## External dependencies
 
