@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>hege_bringup</name>
+  <version>0.4.0</version>
+  <description>Launch files and configuration for the HEGE rover PX4 stack (SITL and real Pixhawk)</description>
+  <maintainer email="ouz.3406@gmail.com">Oguzhan Enes Isik</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>hege_px4_bridge</exec_depend>
+  <exec_depend>hege_px4_sensors</exec_depend>
+  <exec_depend>twist_mux</exec_depend>
+  <exec_depend>nav2_smac_planner</exec_depend>
+  <exec_depend>nav2_regulated_pure_pursuit_controller</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

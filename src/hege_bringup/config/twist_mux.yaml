@@ -1,0 +1,18 @@
+twist_mux:
+  ros__parameters:
+    topics:
+      navigation:
+        topic: /cmd_vel/nav
+        timeout: 0.5
+        priority: 10
+      motion_test:
+        topic: /cmd_vel/test
+        timeout: 0.25
+        priority: 50
+      teleop:
+        topic: /cmd_vel/teleop
+        timeout: 0.25
+        priority: 100
+
+# Output `cmd_vel_out` is remapped by the bring-up launches to
+# `/cmd_vel/selected`, which is the only velocity topic consumed by the bridge.

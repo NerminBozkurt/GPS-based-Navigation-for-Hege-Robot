@@ -1,0 +1,21 @@
+# Bridge parameters for PX4 SITL  `make px4_sitl gz_rover_ackermann`  (PX4 v1.16.1).
+# The rover values are copied from PX4's airframe file
+# ROMFS/px4fmu_common/init.d-posix/airframes/4012_gz_rover_ackermann,
+# so the bridge limits and PX4's own limits agree.
+hege_px4_bridge:
+  ros__parameters:
+    rate_hz: 20.0                 # setpoint + heartbeat rate (PX4 needs > 2 Hz)
+    cmd_timeout: 0.5              # [s] no /cmd_vel for this long -> neutral
+    status_timeout: 2.0           # [s] VehicleStatus is normally only 2 Hz
+    attitude_timeout: 0.5         # [s] high-rate attitude freshness
+    command_ack_timeout: 1.5      # [s] service waits for final PX4 ACK
+    wheel_base: 0.321             # = RA_WHEEL_BASE   [m]
+    max_steering_angle: 0.5236    # = RA_MAX_STR_ANG  [rad]  (30 deg)
+    max_speed: 1.0                # bridge cap, <= RO_SPEED_LIM (3.0). Kept low for first tests.
+    max_yaw_rate: 1.0             # bridge cap [rad/s], <= RO_YAW_RATE_LIM (180 deg/s = 3.14 rad/s)
+    min_moving_speed: 0.05        # [m/s]
+    px4_yaw_p: 3.0                # MUST equal PX4 RO_YAW_P (3 in the SITL airframe)
+    cmd_vel_topic: "/cmd_vel/selected"
+    vehicle_status_topic: "/fmu/out/vehicle_status_v1"   # VehicleStatus has MESSAGE_VERSION = 1 in v1.16.1
+    vehicle_command_ack_topic: "/fmu/out/vehicle_command_ack"
+    allow_remote_vehicle_commands: true   # SITL only

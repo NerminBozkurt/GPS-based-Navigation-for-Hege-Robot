@@ -12,3 +12,10 @@ __pycache__/
 .idea/
 *.swp
 .DS_Store
+
+# external repos cloned into the workspace, not our code
+PX4-Autopilot/
+src/px4_msgs/
+
+# field data captured by scripts/
+data/
