@@ -1,0 +1,64 @@
+# hege_px4_sensors, configured to feed the navigation stack this repository
+# already has rather than the /px4/* topics of a standalone PX4 setup.
+#
+# sensors.yaml in hege_px4_sensors is the standalone version and stays as it
+# is. The only difference here is names and frames: the conversion maths, the
+# covariance handling and the frame transforms are identical.
+
+hege_px4_sensors:
+  ros__parameters:
+
+    # This is the whole trick. hege_localization consumes /imu/data and
+    # /gps/fix - those are the topics the Gazebo sensors publish - so pointing
+    # the conversion node at the same two names means the EKF configuration,
+    # navsat_transform and Nav2 above them need no PX4-specific variant at
+    # all. The same dual-EKF runs in both worlds.
+    imu_topic: "/imu/data"
+    gps_topic: "/gps/fix"
+
+    # The exception. Nothing in the Gazebo stack is called this, because in
+    # Gazebo the velocity comes from the wheels and here there are no wheel
+    # encoders to read - the Pixhawk publishes no such thing. The launch file
+    # passes this name to localization.launch.py as odom_topic, which is where
+    # /ackermann_steering_controller/odometry would otherwise sit.
+    #
+    # Only the forward velocity is taken from it. This is EKF2's fused output,
+    # so its POSITION must not be fused again alongside /odometry/gps - that
+    # would be the same GPS entering the filter twice. odom0_config in
+    # dual_ekf_navsat.yaml already selects vx alone, which is what makes this
+    # substitution legitimate.
+    odom_topic: "/px4/odom"
+
+    odom_frame: "odom"
+
+    # PX4 reports its body-frame quantities about base_link, and saying so is
+    # more honest than renaming it. robot_localization transforms into its own
+    # base_link_frame (base_footprint) using TF, and since the two differ by a
+    # pure vertical translation with no rotation, a linear velocity is the
+    # same number in either.
+    base_frame: "base_link"
+    imu_frame: "base_link"
+
+    # The measured antenna position, 1.30 m up, which the URDF carries as
+    # base_link->gps_link. navsat_transform reads that offset off TF and takes
+    # it out of the fix; with base_link here it would assume the antenna sits
+    # at the vehicle origin and place every fix 0.20 m too low, plus a
+    # horizontal error proportional to any pitch or roll.
+    #
+    # This requires robot_state_publisher to be running. hege_sitl.launch.py
+    # starts it; a bare bringup would not.
+    gps_frame: "gps_link"
+
+    # ekf_local owns odom -> base_footprint and only one node may. Turning
+    # this on gives two publishers on the same TF edge, which does not fail
+    # loudly - it just makes the transform flicker between two answers.
+    publish_tf: false
+
+    # PX4 timestamps, re-based onto the companion's clock by the uXRCE-DDS
+    # agent. There is no /clock in this setup and use_sim_time is false
+    # everywhere in the PX4 path, so these are directly comparable with
+    # ROS wall time.
+    stamp_source: "px4"
+
+    max_attitude_age: 0.2
+    unknown_variance: 1.0e6

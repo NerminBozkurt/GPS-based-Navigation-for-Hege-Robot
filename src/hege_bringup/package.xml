@@ -17,6 +17,14 @@
   <exec_depend>nav2_smac_planner</exec_depend>
   <exec_depend>nav2_regulated_pure_pursuit_controller</exec_depend>
 
+  <!-- hege_sitl.launch.py runs the navigation stack on top of PX4. -->
+  <exec_depend>hege_description</exec_depend>
+  <exec_depend>hege_localization</exec_depend>
+  <exec_depend>hege_navigation</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
   <export>
     <build_type>ament_cmake</build_type>
   </export>

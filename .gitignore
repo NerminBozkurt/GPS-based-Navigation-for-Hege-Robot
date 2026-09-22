@@ -19,3 +19,6 @@ src/px4_msgs/
 
 # field data captured by scripts/
 data/
+
+# generated from hege.urdf.xacro by hege_px4_sim/scripts/generate_hege_model.sh
+src/hege_px4_sim/models/hege_rover/model.sdf

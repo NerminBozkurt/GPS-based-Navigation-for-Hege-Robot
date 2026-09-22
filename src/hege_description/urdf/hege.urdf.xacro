@@ -11,7 +11,18 @@
          ros2_control  - gazebo_ros2_control + ackermann_steering_controller.
                          Real Ackermann kinematics, and the path to the real
                          robot, but currently held up by a controller bug that
-                         makes the rover creep at 1 m/s on startup. -->
+                         makes the rover creep at 1 m/s on startup.
+         px4           - Gazebo Harmonic, driven by PX4 SITL rather than by
+                         ROS. Nothing in this mode talks to ROS at all: PX4's
+                         gz_bridge reads the sensors and writes the wheel and
+                         steering joints over gz-transport, and ROS only sees
+                         the vehicle through the uXRCE-DDS link and
+                         hege_px4_sensors. The first two modes are Gazebo
+                         CLASSIC and this one is not, so they cannot run in the
+                         same simulator - see docs/px4_sitl.md.
+
+       planar and ros2_control are unaffected by anything in the px4 branches
+       below; the existing simulation keeps running exactly as before. -->
   <xacro:arg name="drive" default="planar"/>
   <xacro:property name="drive" value="$(arg drive)"/>
 
@@ -177,7 +188,19 @@
     </gazebo>
   </xacro:macro>
 
-  <link name="base_footprint"/>
+  <link name="base_footprint">
+    <!-- Massless everywhere except px4 mode. There the base_joint below is
+         preserved through SDF conversion, which leaves base_footprint as a
+         real root link, and gz-sim wants a root link to have an inertia. It is
+         1e-4 kg against 1200 kg, so it changes neither the total mass nor the
+         centre of mass in any way that survives rounding. -->
+    <xacro:if value="${drive == 'px4'}">
+      <inertial>
+        <mass value="1e-4"/>
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+      </inertial>
+    </xacro:if>
+  </link>
 
   <link name="base_link">
     <visual>
@@ -309,6 +332,13 @@
     <origin xyz="0 0 ${gps_z}" rpy="0 0 0"/>
   </joint>
 
+  <!-- ============ SENSORS, GAZEBO CLASSIC ============ -->
+  <!-- Wrapped rather than re-indented so the diff against the working
+       simulation stays readable. In px4 mode these are replaced wholesale by
+       the Harmonic sensors further down: the plugin names, the sensor types
+       and the consumer are all different. -->
+  <xacro:unless value="${drive == 'px4'}">
+
   <!-- ============ IMU SENSOR ============ -->
   <gazebo reference="imu_link">
     <sensor name="imu_sensor" type="imu">
@@ -369,6 +399,7 @@
     </sensor>
   </gazebo>
 
+  </xacro:unless>
 
 
   <!-- ============ PLANAR DRIVE (keyboard / teleop) ============ -->
@@ -468,6 +499,159 @@
         <parameters>$(find hege_description)/config/controllers.yaml</parameters>
         <robot_param>robot_description</robot_param>
         <robot_param_node>robot_state_publisher</robot_param_node>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+  <!-- ============ PX4 SITL (Gazebo Harmonic) ============ -->
+  <!-- Nothing in this branch talks to ROS. PX4's gz_bridge reads the sensors
+       and writes the joints straight over gz-transport, and everything ROS
+       sees arrives later over uXRCE-DDS via hege_px4_sensors.
+
+       PX4 finds the sensors by HARDCODED topic paths (GZBridge.cpp):
+
+         /world/$W/model/$M/link/base_link/sensor/imu_sensor/imu
+         /world/$W/model/$M/link/base_link/sensor/navsat_sensor/navsat
+         /world/$W/model/$M/link/base_link/sensor/magnetometer_sensor/magnetometer
+         /world/$W/model/$M/link/base_link/sensor/air_pressure_sensor/air_pressure
+
+       So the link name and all four sensor names are fixed by PX4, not chosen
+       by us. Renaming any of them silently gives a vehicle whose EKF2 never
+       receives that sensor. -->
+  <xacro:if value="${drive == 'px4'}">
+
+    <!-- URDF->SDF conversion lumps a fixed joint's child into its parent.
+         base_link is base_footprint's fixed child, so without this the model
+         would have no link called base_link at all and PX4 would subscribe to
+         four topics that never exist. -->
+    <gazebo reference="base_joint">
+      <preserveFixedJoint>true</preserveFixedJoint>
+    </gazebo>
+
+    <!-- All four sensors live on base_link because PX4 demands it, and carry
+         the measured lever arms as an explicit pose instead. imu_link and
+         gps_link still exist in the URDF, so robot_state_publisher keeps
+         publishing their TF for navsat_transform and RViz; they simply are not
+         where the simulated hardware is mounted. -->
+    <gazebo reference="base_link">
+
+      <!-- 1.20 m above the ground = imu_z above base_link. -->
+      <sensor name="imu_sensor" type="imu">
+        <pose>0 0 ${imu_z} 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>250</update_rate>
+        <imu>
+          <angular_velocity>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>${imu_gyro_noise}</stddev><bias_mean>${imu_gyro_bias}</bias_mean><bias_stddev>${imu_gyro_bias}</bias_stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>${imu_gyro_noise}</stddev><bias_mean>${imu_gyro_bias}</bias_mean><bias_stddev>${imu_gyro_bias}</bias_stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>${imu_gyro_noise}</stddev><bias_mean>${imu_gyro_bias}</bias_mean><bias_stddev>${imu_gyro_bias}</bias_stddev></noise></z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>${imu_accel_noise}</stddev><bias_mean>${imu_accel_bias}</bias_mean><bias_stddev>${imu_accel_bias}</bias_stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>${imu_accel_noise}</stddev><bias_mean>${imu_accel_bias}</bias_mean><bias_stddev>${imu_accel_bias}</bias_stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>${imu_accel_noise}</stddev><bias_mean>${imu_accel_bias}</bias_mean><bias_stddev>${imu_accel_bias}</bias_stddev></noise></z>
+          </linear_acceleration>
+        </imu>
+      </sensor>
+
+      <!-- 1.30 m above the ground = gps_z above base_link. Deliberately
+           noiseless: PX4 adds its own GNSS error model through the SIM_GPS_*
+           parameters, and stacking ours on top would make the fix worse than
+           either model describes. gps_noise in this file drives the Gazebo
+           Classic receiver only. -->
+      <sensor name="navsat_sensor" type="navsat">
+        <pose>0 0 ${gps_z} 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>10</update_rate>
+      </sensor>
+
+      <!-- Neither sensor exists on the real Hege as a separate unit, but EKF2
+           expects both. Noise figures are PX4's own, taken from the stock
+           rover model: they describe the chips, not the vehicle. -->
+      <sensor name="magnetometer_sensor" type="magnetometer">
+        <always_on>1</always_on>
+        <update_rate>100</update_rate>
+        <magnetometer>
+          <x><noise type="gaussian"><stddev>0.0001</stddev></noise></x>
+          <y><noise type="gaussian"><stddev>0.0001</stddev></noise></y>
+          <z><noise type="gaussian"><stddev>0.0001</stddev></noise></z>
+        </magnetometer>
+      </sensor>
+
+      <sensor name="air_pressure_sensor" type="air_pressure">
+        <always_on>1</always_on>
+        <update_rate>50</update_rate>
+        <air_pressure>
+          <pressure><noise type="gaussian"><mean>0</mean><stddev>3</stddev></noise></pressure>
+        </air_pressure>
+      </sensor>
+    </gazebo>
+
+    <!-- Traction: the two rear wheels.
+         PX4 sends a gz Actuators message on command/motor_speed and the
+         velocity it carries is (mixer output - 100), so the joint is commanded
+         in rad/s directly. Both rear wheels read actuator 0, which is what
+         makes them a single rigid axle rather than a differential.
+
+         Hege is rear-wheel drive; PX4's own rover model drives all four. The
+         front wheels below stay free-rolling, which is what the real machine
+         does. -->
+    <gazebo>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>left_rear_wheel_joint</joint_name>
+        <sub_topic>command/motor_speed</sub_topic>
+        <control_type>velocity</control_type>
+        <use_actuator_msg>true</use_actuator_msg>
+        <actuator_number>0</actuator_number>
+      </plugin>
+    </gazebo>
+    <gazebo>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>right_rear_wheel_joint</joint_name>
+        <sub_topic>command/motor_speed</sub_topic>
+        <control_type>velocity</control_type>
+        <use_actuator_msg>true</use_actuator_msg>
+        <actuator_number>0</actuator_number>
+      </plugin>
+    </gazebo>
+
+    <!-- Steering: both front knuckles.
+         PX4 has one steering output, so both sides receive the same angle.
+         That is parallel steering, not true Ackermann geometry - the inner and
+         outer wheels should differ - but it is exactly what PX4's own rover
+         model does, and the error is small at the turning radii this vehicle
+         can reach. The gains are PX4's; raise them if the steering visibly
+         lags the commanded angle on a 1200 kg vehicle. -->
+    <gazebo>
+      <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+        <joint_name>left_steer_joint</joint_name>
+        <sub_topic>servo_0</sub_topic>
+        <p_gain>100</p_gain>
+        <i_gain>10</i_gain>
+        <d_gain>0</d_gain>
+      </plugin>
+    </gazebo>
+    <gazebo>
+      <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+        <joint_name>right_steer_joint</joint_name>
+        <sub_topic>servo_0</sub_topic>
+        <p_gain>100</p_gain>
+        <i_gain>10</i_gain>
+        <d_gain>0</d_gain>
+      </plugin>
+    </gazebo>
+
+    <!-- Publishes joint state on gz-transport only. It is not the ROS
+         /joint_states topic and nothing in the ROS stack consumes it; it is
+         here because it makes the model inspectable from `gz topic`. -->
+    <gazebo>
+      <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+        <joint_name>left_rear_wheel_joint</joint_name>
+        <joint_name>right_rear_wheel_joint</joint_name>
+        <joint_name>left_steer_joint</joint_name>
+        <joint_name>right_steer_joint</joint_name>
+        <joint_name>left_front_wheel_joint</joint_name>
+        <joint_name>right_front_wheel_joint</joint_name>
       </plugin>
     </gazebo>
   </xacro:if>
