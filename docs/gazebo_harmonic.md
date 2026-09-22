@@ -100,25 +100,64 @@ the names to the wrong packages and uninstall what is working:
 - `gazebo_ros`, `gazebo_plugins` and `gazebo_ros2_control` are Classic, and
   conflict with Harmonic as described above.
 
-So the ROS-to-Harmonic packages have to be installed deliberately. Check what
-your machine can get first — the OSRF apt repository, which is already
-configured if `gz-harmonic` was installed from it, ships Harmonic-flavoured
-builds under a different name:
+So the ROS-to-Harmonic packages have to be installed deliberately, and they
+come from two different places.
 
-    apt search ros-humble-ros-gzharmonic
-    apt search ros-humble-gz-ros2-control
+**`ros_gz` — from apt.** The OSRF repository, which is already configured if
+`gz-harmonic` was installed from it, ships Harmonic builds under a suffixed
+Debian name. The ROS package names inside are still the usual ones:
 
-If `ros-humble-ros-gzharmonic` and a Harmonic `gz_ros2_control` are available,
-install those. If they are not, both have to be built from source against
-Harmonic, which is what the upstream instructions cover and what
-`EXTERNAL_DEPS.txt` pins:
+    sudo apt install ros-humble-ros-gzharmonic-sim ros-humble-ros-gzharmonic-bridge
+
+    ros2 pkg prefix ros_gz_sim ros_gz_bridge     # both must print a path
+
+**`gz_ros2_control` — from source.** There is a
+`ros-humble-gz-ros2-control` on packages.ros.org, and it is the wrong one:
+
+    apt show ros-humble-gz-ros2-control | grep ^Depends
+    -> libsdformat12
+
+`libsdformat12` is Gazebo Fortress. Harmonic is `libsdformat14`. The plugin
+will not load into `gz-sim8`, so this package has to be built from source
+against Harmonic, at the revision `EXTERNAL_DEPS.txt` pins:
 
     gz_ros2_control: humble c88a5fd
 
-built in its own workspace with `GZ_VERSION=harmonic` and sourced before this
-one. `GZ_SIM_SYSTEM_PLUGIN_PATH` then has to include that workspace's `lib`, or
-Gazebo starts, the model spawns, and `ros2 control list_controllers` reports no
-controller manager at all.
+In its own workspace, next to this one:
+
+    cd <workspace>
+    mkdir -p gz_ros2_control_ws/src && cd gz_ros2_control_ws/src
+    git clone -b humble https://github.com/ros-controls/gz_ros2_control.git
+    git -C gz_ros2_control checkout c88a5fd
+    cd ..
+    source /opt/ros/humble/setup.bash
+    export GZ_VERSION=harmonic
+    colcon build --symlink-install
+
+`GZ_VERSION=harmonic` is what selects the Harmonic libraries; without it the
+build picks Fortress if it is present and fails if it is not. Do **not** run
+`rosdep install` in that workspace — it would resolve the Gazebo dependencies
+to Fortress, which is the whole problem. The Harmonic development headers it
+needs (`libgz-sim8-dev`, `libsdformat14-dev`) come with `gz-harmonic`.
+
+Then source it before this workspace, in every terminal:
+
+    source gz_ros2_control_ws/install/setup.bash
+    source install/setup.bash
+
+`spawn_hege.launch.py` takes care of `GZ_SIM_SYSTEM_PLUGIN_PATH` itself, by
+looking up the `gz_ros2_control` prefix through ament. That matters because the
+failure when it is missing is quiet: Gazebo starts, the world loads, the model
+appears, and then every controller spawner sits waiting for a
+`/controller_manager` that was never created.
+
+**Checking for damage before any of this.** Given how easily one Gazebo removes
+another, simulate first. Nothing is changed by:
+
+    sudo apt install -s <packages> 2>&1 | grep -E '^(Remv|REMOV)'
+
+Any line in that output means apt intends to remove something. Read it before
+continuing.
 
 ## Checking it works
 

@@ -28,10 +28,12 @@ import os
 
 import xacro
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import (PackageNotFoundError, get_package_prefix,
+                                         get_package_share_directory)
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
-                            OpaqueFunction, RegisterEventHandler)
+                            OpaqueFunction, RegisterEventHandler,
+                            SetEnvironmentVariable)
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -56,6 +58,30 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = LaunchConfiguration('use_sim_time')
     world = LaunchConfiguration('world').perform(context)
     gui = LaunchConfiguration('gui').perform(context).lower() in ('true', '1')
+
+    # Humble's binary gz_ros2_control is built against Gazebo Fortress
+    # (libsdformat12), so on Harmonic it has to come from a source build in its
+    # own workspace. Gazebo then cannot find the system plugin, because it
+    # looks for those on GZ_SIM_SYSTEM_PLUGIN_PATH rather than through ament.
+    #
+    # Setting it here rather than leaving it to the operator's shell, because
+    # the failure it causes is quiet and misleading: Gazebo starts, the world
+    # loads, the model appears, and then every controller spawner sits waiting
+    # for a /controller_manager that was never created.
+    plugin_path_actions = []
+    try:
+        gz_control_lib = os.path.join(get_package_prefix('gz_ros2_control'), 'lib')
+        existing = os.environ.get('GZ_SIM_SYSTEM_PLUGIN_PATH', '')
+        plugin_path_actions.append(SetEnvironmentVariable(
+            'GZ_SIM_SYSTEM_PLUGIN_PATH',
+            gz_control_lib + (':' + existing if existing else '')))
+    except PackageNotFoundError:
+        # Let the launch continue: the failure further down is clearer than an
+        # exception here, and this path is also taken if gz_ros2_control was
+        # installed somewhere ament cannot see but Gazebo can.
+        print('WARNING: gz_ros2_control not found. Source its workspace first, '
+              'or the controller manager will never start. '
+              'See docs/gazebo_harmonic.md.')
 
     # -r starts the world unpaused; -s is server only. Without -r the
     # controllers spawn against a simulator whose clock never advances, and
@@ -146,7 +172,7 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
     )
 
-    return [
+    return plugin_path_actions + [
         gz_sim,
         robot_state_publisher,
         bridge,

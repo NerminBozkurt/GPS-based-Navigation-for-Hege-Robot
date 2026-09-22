@@ -22,3 +22,6 @@ data/
 
 # generated from hege.urdf.xacro by hege_px4_sim/scripts/generate_hege_model.sh
 src/hege_px4_sim/models/hege_rover/model.sdf
+
+# gz_ros2_control built from source against Harmonic (see docs/gazebo_harmonic.md)
+gz_ros2_control_ws/
