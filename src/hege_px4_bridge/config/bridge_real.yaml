@@ -1,0 +1,29 @@
+# Bridge parameters for the real HEGE rover (Pixhawk 6X, PX4 v1.16.1 rover build).
+#
+# Geometry below uses the operator-provided measurements: 1.91 m wheelbase and
+# approximately 35 degrees maximum steering. Verify both mechanically and set
+# them consistently in PX4
+# !!! (QGroundControl) and here. The bridge refuses to start while required
+# !!! geometry/gain values are 0.
+# PX4 procedure: docs "Configuration/Tuning (Ackermann Rover)" -> Manual mode:
+#   RA_WHEEL_BASE   distance rear axle -> front axle
+#   RA_MAX_STR_ANG  maximum steering angle (PX4 stores rad)
+#   RO_MAX_THR_SPEED / RO_SPEED_LIM  from full-throttle ground speed test
+#   RO_YAW_P        tuned in Stabilized mode (start at 1)
+hege_px4_bridge:
+  ros__parameters:
+    rate_hz: 20.0
+    cmd_timeout: 0.5
+    status_timeout: 2.0           # VehicleStatus is normally published at only 2 Hz
+    attitude_timeout: 0.5         # high-rate stream; stale sooner than status
+    command_ack_timeout: 1.5      # Trigger services fail unless a final ACK arrives
+    wheel_base: 1.91              # operator measurement = RA_WHEEL_BASE [m]
+    max_steering_angle: 0.610865  # approx 35 deg = RA_MAX_STR_ANG [rad]
+    max_speed: 0.3                # start very low for the lifted-wheels test; must be <= RO_SPEED_LIM
+    max_yaw_rate: 0.10            # conservative first test; kinematic max is about 0.11 rad/s at 0.3 m/s
+    min_moving_speed: 0.05
+    px4_yaw_p: 0.0                # SET from QGroundControl RO_YAW_P after tuning; node refuses 0
+    cmd_vel_topic: "/cmd_vel/selected"
+    vehicle_status_topic: "/fmu/out/vehicle_status_v1"
+    vehicle_command_ack_topic: "/fmu/out/vehicle_command_ack"
+    allow_remote_vehicle_commands: false  # arm/mode from RC or QGroundControl only

@@ -1,0 +1,47 @@
+# Bridge parameters for the HEGE rover in PX4 SITL.
+#
+# bridge_sim.yaml is for PX4's stock 0.321 m demo rover; this file is for our
+# own vehicle, spawned from hege_px4_sim and booted with the
+# 4100_gz_hege_rover airframe. The geometry and RO_YAW_P below are copied from
+# that airframe, which in turn follows hege.urdf.xacro. If any of the three
+# disagree the bridge is steering a vehicle that does not exist.
+#
+# Unlike bridge_real.yaml these limits are NOT deliberately crippled: the whole
+# point of SITL is to exercise the Nav2 tuning at the speed it was tuned for,
+# with nothing heavy that can hurt anybody.
+hege_px4_bridge:
+  ros__parameters:
+    rate_hz: 20.0
+    cmd_timeout: 0.5
+    status_timeout: 2.0
+    attitude_timeout: 0.5
+    command_ack_timeout: 1.5
+
+    wheel_base: 1.91              # = RA_WHEEL_BASE   [m]
+    max_steering_angle: 0.6       # = RA_MAX_STR_ANG  [rad], 34.4 deg
+
+    # Matches desired_linear_vel in nav2_params.yaml, so Nav2 runs at the speed
+    # its lookahead and turning radius were measured against. Well below the
+    # airframe's RO_SPEED_LIM of 3.0.
+    max_speed: 1.0
+
+    # The kinematic ceiling at 1.0 m/s is v * tan(delta_max) / L
+    # = 1.0 * tan(0.6) / 1.91 = 0.358 rad/s, so this is the real constraint
+    # rather than an arbitrary cap. Nav2's 6.0 m minimum turning radius only
+    # ever asks for 1.0/6.0 = 0.167 rad/s, so it never reaches this limit.
+    max_yaw_rate: 0.35
+
+    min_moving_speed: 0.05
+
+    # MUST equal RO_YAW_P in 4100_gz_hege_rover. The bridge asks PX4 for a yaw
+    # rate by offsetting the heading setpoint by omega / RO_YAW_P; the two
+    # cancel only when this number is right.
+    px4_yaw_p: 3.0
+
+    cmd_vel_topic: "/cmd_vel/selected"
+    vehicle_status_topic: "/fmu/out/vehicle_status_v1"
+    vehicle_command_ack_topic: "/fmu/out/vehicle_command_ack"
+
+    # SITL only. There is no RC transmitter here, so the bridge's own arm and
+    # offboard services are the only way in. bridge_real.yaml keeps this false.
+    allow_remote_vehicle_commands: true

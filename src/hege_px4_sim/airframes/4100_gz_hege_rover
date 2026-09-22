@@ -1,0 +1,103 @@
+#!/bin/sh
+# @name HEGE Ackermann Rover
+# @type Rover
+# @class Rover
+#
+# PX4 SITL airframe for the measured HEGE field rover.
+#
+# Every geometry number here has a twin in hege.urdf.xacro, and the two must
+# agree or PX4 will be controlling a vehicle that is not the one Gazebo is
+# simulating. The model.sdf is generated FROM that xacro, so the xacro is the
+# source of truth and this file follows it.
+#
+# Install with scripts/install_to_px4.sh, which also copies the generated
+# model and registers this file in the ROMFS CMakeLists.
+
+. ${R}etc/init.d/rc.rover_ackermann_defaults
+
+PX4_SIMULATOR=${PX4_SIMULATOR:=gz}
+PX4_GZ_WORLD=${PX4_GZ_WORLD:=rover}
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=hege_rover}
+
+param set-default SIM_GZ_EN 1
+
+# Waypoint acceptance radius. PX4's own rover uses 0.5 m; that is a third of
+# this vehicle's width, so it would never report a waypoint reached.
+param set-default NAV_ACC_RAD 2.0
+
+# ---------------------------------------------------------------- geometry
+# = wheelbase and max_steer in hege.urdf.xacro. RA_MAX_STR_ANG is in radians;
+# 0.6 rad = 34.4 deg, which gives a geometric minimum turning radius of
+# 1.91 / tan(0.6) = 2.79 m.
+param set-default RA_WHEEL_BASE 1.91
+param set-default RA_MAX_STR_ANG 0.6
+
+# Steering rate, deg/s. The URDF limits the steer joints to 0.8 rad/s, so
+# anything above 45 deg/s here asks for motion the simulated actuator refuses
+# to produce and the controller winds up against a limit it cannot see.
+param set-default RA_STR_RATE_LIM 45
+
+# Acceptance radius scaling for cornering, sized for a 2.79 m turning circle.
+param set-default RA_ACC_RAD_GAIN 2
+param set-default RA_ACC_RAD_MAX 6
+
+# ---------------------------------------------------------- speed and rates
+# RO_MAX_THR_SPEED is the ground speed at full throttle, and it is NOT a free
+# choice: PX4 commands the wheel joints in rad/s as (mixer output - 100), so
+# SIM_GZ_WH_MAX1 = 108 means 8 rad/s, and 8 rad/s on the 0.40 m rear wheels is
+#
+#     8 rad/s x 0.40 m = 3.2 m/s
+#
+# MEASURE THIS before trusting it. Drive at full throttle in SITL, read the
+# steady-state ground speed, and put the measured number here. Tyre slip and
+# the contact parameters in the URDF both pull the real figure below 3.2.
+param set-default RO_MAX_THR_SPEED 3.2
+param set-default RO_SPEED_LIM 3.0
+
+# 1200 kg does not accelerate like PX4's 20 kg demo rover, which uses 3 and 6.
+param set-default RO_ACCEL_LIM 0.5
+param set-default RO_DECEL_LIM 1.0
+param set-default RO_JERK_LIM 2
+
+# Yaw rate limit, deg/s. The kinematic ceiling is v * tan(delta_max) / L, so at
+# the 3.0 m/s speed limit that is 3.0 * tan(0.6) / 1.91 = 1.07 rad/s = 61 deg/s.
+# Asking for more than the front wheels can deliver just saturates the steering.
+param set-default RO_YAW_RATE_LIM 60
+param set-default RO_YAW_RATE_P 1
+param set-default RO_YAW_RATE_I 0.1
+
+# THE parameter hege_px4_bridge has to match. The bridge converts a yaw-rate
+# request into a heading offset of omega / RO_YAW_P, which only cancels when
+# px4_yaw_p in bridge_hege_sitl.yaml carries this same number.
+param set-default RO_YAW_P 3
+
+param set-default RO_SPEED_I 0.1
+param set-default RO_SPEED_P 1
+
+# Pure pursuit lookahead, scaled to the vehicle rather than to PX4's demo rover.
+# Only used by PX4's own position modes, not by the offboard path the bridge
+# drives, but leaving the stock 1-10 m here makes manual missions unusable.
+param set-default PP_LOOKAHD_GAIN 1
+param set-default PP_LOOKAHD_MIN 3
+param set-default PP_LOOKAHD_MAX 20
+
+# ------------------------------------------------------------- actuators
+# Wheels. The gz JointController is commanded in rad/s as (output - 100), so
+# DIS1 = 100 is a standstill, MAX1 = 108 is +8 rad/s and MIN1 = 92 is -8 rad/s.
+# Both rear wheels read actuator 0, which is what makes them one rigid axle.
+param set-default SIM_GZ_WH_FUNC1 101
+param set-default SIM_GZ_WH_DIS1 100
+param set-default SIM_GZ_WH_MIN1 92
+param set-default SIM_GZ_WH_MAX1 108
+
+# Steering, in DEGREES here while RA_MAX_STR_ANG above is in radians.
+# 34.38 deg = 0.6 rad = the URDF's steer joint limit. All three agree.
+param set-default SIM_GZ_SV_FUNC1 201
+param set-default SIM_GZ_SV_MAXA1 34.38
+param set-default SIM_GZ_SV_MINA1 -34.38
+param set-default CA_SV_CS_COUNT 1
+
+# The URDF steer joints turn counter-clockwise for a positive angle, which is
+# the ROS convention and the opposite of PX4's. If the rover steers the wrong
+# way in SITL, this is the first and most likely thing to flip.
+param set-default SIM_GZ_SV_REV 1

@@ -1,0 +1,48 @@
+# The few Nav2 parameters that have to change when the rover is driven through
+# PX4 instead of through the Gazebo Ackermann controller.
+#
+# Loaded AFTER hege_navigation/config/nav2_params.yaml, so only the keys
+# written here are replaced and everything else - the costmaps, the footprint,
+# the lookahead distances, the measured turning radius - stays as it was
+# tuned. This file is deliberately short: if it grows, the two configurations
+# have started diverging and that is worth noticing.
+#
+# What is NOT here, and why:
+#   desired_linear_vel stays at 1.0 m/s. bridge_hege_sitl.yaml caps max_speed
+#   at exactly 1.0, so the tuned speed goes through untouched. Against the
+#   REAL rover, where bridge_real.yaml caps at 0.3 m/s, this file is not
+#   enough - see docs/px4_sitl.md.
+#
+#   minimum_turning_radius stays at 6.0 m. The bridge's yaw-rate limit at
+#   1.0 m/s corresponds to a 2.8 m radius, so the planner is already the
+#   tighter of the two constraints and never reaches the clamp.
+
+planner_server:
+  ros__parameters:
+    GridBased:
+      # REEDS_SHEPP plans paths with reverse segments. PX4's offboard velocity
+      # branch for an Ackermann rover drives forwards only and the bridge
+      # turns a negative linear.x into a full stop, so a Reeds-Shepp path is
+      # one the vehicle would simply refuse to finish. DUBIN is the same
+      # planner restricted to forward motion.
+      motion_model_for_search: DUBIN
+
+      # Meaningless once the motion model is forward-only, but left at a
+      # neutral value rather than the base file's 3.0 so nobody reads it as a
+      # live tuning knob in this configuration.
+      reverse_penalty: 1.0
+
+controller_server:
+  ros__parameters:
+    FollowPath:
+      # The controller half of the same decision. With this true and the
+      # planner forward-only, RPP could still command reverse while recovering
+      # from a tracking error, and that reverse would silently become a stop.
+      allow_reversing: false
+
+behavior_server:
+  ros__parameters:
+    # backup dropped. The px4 behaviour trees do not call it, and leaving the
+    # action server running would let a hand-edited tree command a reverse the
+    # vehicle cannot perform.
+    behavior_plugins: [drive_on_heading, wait]

@@ -1,0 +1,13 @@
+hege_px4_sensors:
+  ros__parameters:
+    odom_frame: "odom"
+    base_frame: "base_link"
+    imu_frame: "base_link"
+    gps_frame: "base_link"    # use gps_link only after adding the measured base_link->gps_link static TF
+    publish_tf: false         # enable only when PX4 is the sole odom->base_link owner
+    stamp_source: "px4"       # "px4": PX4 timestamps (agent time-synced) | "ros": arrival time
+    odom_topic: "/px4/odom"   # fused PX4 EKF output; do not treat as independent wheel odometry
+    imu_topic: "/px4/imu"
+    gps_topic: "/px4/gps/fix"
+    max_attitude_age: 0.2     # [s] otherwise Imu orientation is marked unknown
+    unknown_variance: 1.0e6  # conservative covariance when PX4 variance is invalid

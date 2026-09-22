@@ -9,9 +9,13 @@ Run it next to the simulation and teleop:
         --ros-args -p speed:=1.5 -p turn:=0.3
     ros2 run hege_localization localization_monitor.py
 
-Ground truth comes from Gazebo itself (the gazebo_ros_state world plugin on
-/model_states), not from GPS, so GPS noise shows up as an error like every
-other estimate rather than being taken for the right answer.
+Ground truth comes from the simulator itself, not from GPS, so GPS noise shows
+up as an error like every other estimate rather than being taken for the right
+answer. Which topic carries it depends on which Gazebo is running: Harmonic
+publishes /ground_truth/odom through the OdometryPublisher system in the
+URDF's gz branch, and Classic publishes /model_states through the
+gazebo_ros_state world plugin. The monitor listens for both and uses whichever
+arrives.
 
 All frames line up because the world's spherical_coordinates origin, the EKF
 datum and the spawn point are the same place.
@@ -24,8 +28,15 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from gazebo_msgs.msg import ModelStates
 from sensor_msgs.msg import Imu, NavSatFix
+
+# Gazebo Classic only, and gazebo_msgs is not installable next to Harmonic on
+# every machine. The Harmonic path uses /ground_truth/odom instead, so a
+# missing gazebo_msgs must not stop the monitor from running.
+try:
+    from gazebo_msgs.msg import ModelStates
+except ImportError:
+    ModelStates = None
 
 MODEL_NAME = 'hege'
 
@@ -67,8 +78,16 @@ class Monitor(Node):
         self.cmd = Twist()
         self.peak = {}
 
-        self.create_subscription(ModelStates, '/model_states',
-                                 self.on_model_states, 10)
+        # Two ground-truth sources, one per simulator, and whichever is
+        # actually publishing wins. Harmonic has no /model_states: the pose
+        # comes from the OdometryPublisher system in the URDF's gz branch,
+        # bridged by spawn_hege.launch.py. Both carry the simulator's exact
+        # pose, so the numbers stay comparable across the two.
+        self.create_subscription(Odometry, '/ground_truth/odom',
+                                 lambda m: setattr(self, 'truth', m.pose.pose), 10)
+        if ModelStates is not None:
+            self.create_subscription(ModelStates, '/model_states',
+                                     self.on_model_states, 10)
         self.create_subscription(Odometry, '/odometry/filtered_map',
                                  lambda m: setattr(self, 'glob', m), 10)
         self.create_subscription(Odometry, '/odometry/filtered',

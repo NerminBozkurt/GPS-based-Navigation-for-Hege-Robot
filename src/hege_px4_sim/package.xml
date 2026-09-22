@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>hege_px4_sim</name>
+  <version>0.1.0</version>
+  <description>Gazebo Harmonic model and PX4 airframe that let PX4 SITL fly the measured Hege rover</description>
+  <maintainer email="bozkurtnrmn@gmail.com">Nermin Bozkurt</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- generate_hege_model.sh expands the description package's xacro. -->
+  <exec_depend>hege_description</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

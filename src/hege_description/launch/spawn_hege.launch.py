@@ -1,7 +1,19 @@
-"""Bring up Gazebo with the Hege rover spawned in it.
+"""Bring up Gazebo CLASSIC with the Hege rover spawned in it.
 
     ros2 launch hege_description spawn_hege.launch.py
     ros2 launch hege_description spawn_hege.launch.py gui:=false   # headless
+
+This is the simulation the navigation stack runs against, and the one every
+measured number in nav2_params.yaml and dual_ekf_navsat.yaml came from.
+
+It needs ros-humble-gazebo-ros-pkgs and ros-humble-gazebo-ros2-control, which
+CANNOT be installed alongside Gazebo Harmonic: the two conflict over
+/usr/bin/gz, and installing either apt-removes the other.
+
+spawn_hege_gz.launch.py next to this one is the same simulation ported to
+Gazebo Harmonic. It exists because PX4 SITL requires Harmonic, so a machine
+that runs the PX4 integration cannot run this file. Both are kept and both are
+driven from the same hege.urdf.xacro. See docs/gazebo_harmonic.md.
 """
 
 import os

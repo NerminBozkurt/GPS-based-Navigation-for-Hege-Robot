@@ -27,6 +27,7 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     use_datum = LaunchConfiguration('use_datum')
+    odom_topic = LaunchConfiguration('odom_topic')
 
     # Local filter. Owns odom -> base_footprint. No GPS on purpose.
     ekf_local = Node(
@@ -34,7 +35,8 @@ def generate_launch_description():
         executable='ekf_node',
         name='ekf_local',
         output='screen',
-        parameters=[params, {'use_sim_time': use_sim_time}],
+        parameters=[params, {'use_sim_time': use_sim_time,
+                             'odom0': odom_topic}],
         remappings=[('odometry/filtered', '/odometry/filtered')],
     )
 
@@ -45,7 +47,8 @@ def generate_launch_description():
         executable='ekf_node',
         name='ekf_global',
         output='screen',
-        parameters=[params, {'use_sim_time': use_sim_time}],
+        parameters=[params, {'use_sim_time': use_sim_time,
+                             'odom0': odom_topic}],
         remappings=[('odometry/filtered', '/odometry/filtered_map')],
     )
 
@@ -70,6 +73,17 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'use_sim_time', default_value='true',
             description='Use the /clock topic published by Gazebo.'),
+        DeclareLaunchArgument(
+            'odom_topic',
+            default_value='/ackermann_steering_controller/odometry',
+            description='Velocity source for both filters. The default is the '
+                        'simulated wheel odometry. On the real robot and in '
+                        'PX4 SITL there is no wheel odometry at all - the '
+                        'Pixhawk publishes nothing of the kind - so that '
+                        'becomes /px4/odom, whose twist hege_px4_sensors fills '
+                        'from PX4. Only the forward velocity is taken either '
+                        'way; odom0_config in the yaml decides that, and it '
+                        'does not change with the source.'),
         DeclareLaunchArgument(
             'use_datum', default_value='false',
             description='false: take the map origin from the first GPS fix, so '
