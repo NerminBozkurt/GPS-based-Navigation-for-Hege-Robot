@@ -24,6 +24,7 @@ setup(
         "console_scripts": [
             "bridge = hege_px4_bridge.bridge_node:main",
             "step_test = hege_px4_bridge.step_test_node:main",
+            "dry_run = hege_px4_bridge.dry_run_node:main",
         ],
     },
 )

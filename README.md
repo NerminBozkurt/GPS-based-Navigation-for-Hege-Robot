@@ -57,6 +57,7 @@ a day in the field.
 | Gazebo Harmonic port of the simulation | **Written, never run** |
 | PX4 SITL driving the Hege model | **Written, never run** |
 | Nav2 driving the real rover through PX4 | **Launch file written, never run** |
+| Dry run: a goal in, wheel commands out, nothing moving | **Written, never run** |
 
 The last three are the honest edge of this project. `docs/px4_sitl.md` and
 `docs/gazebo_harmonic.md` each end with a section saying exactly what was and
@@ -255,6 +256,18 @@ vehicle or change its mode; that stays with RC and QGroundControl. It also
 ships `px4_yaw_p: 0.0` and the bridge refuses to start on that, until somebody
 reads the tuned `RO_YAW_P` off QGroundControl. **`docs/real_vehicle.md` has the
 three things to measure first and the order to test in.**
+
+Before either of those, `hege_real_dry_run.launch.py` runs the whole decision
+chain with the bridge left out, so a 2D Goal Pose in RViz produces numbers
+instead of motion:
+
+    ROS_DOMAIN_ID=73 ros2 launch hege_bringup hege_real_dry_run.launch.py
+
+`/hege/dry_run/report` then carries the speed, yaw rate and front-wheel angle
+the bridge would have sent, with the same limits out of the same
+`bridge_real.yaml`. Nothing publishes to `/fmu/in/*`, so there is no path to
+the vehicle at all, and it works before `px4_yaw_p` is measured. The same node
+works against the Gazebo Classic simulation — see `docs/real_vehicle.md`.
 
 ## Command arbitration
 

@@ -83,6 +83,76 @@ ros2 run tf2_ros tf2_echo map base_footprint
 The last one is the real test: if `map -> odom -> base_footprint` resolves, the
 vehicle knows where it is and Nav2 has something to plan against.
 
+## The dry run: a goal, and nothing moves
+
+Before any of the above, do this. It answers "does the rover know where it is
+and does Nav2 plan something sane" without a single actuator being involved,
+and it works before the three measurements exist.
+
+```bash
+ROS_DOMAIN_ID=73 ros2 launch hege_bringup hege_real_dry_run.launch.py
+```
+
+That is `hege_real.launch.py` with `hege_px4_bridge` swapped for its `dry_run`
+node. The bridge is the only thing in the stack that publishes to `/fmu/in/*`,
+so with it not running there is no path from Nav2 to the vehicle at all - arming
+would change nothing. It also sidesteps the `px4_yaw_p` refusal: the dry run
+needs the geometry and the limits out of `bridge_real.yaml`, not the gain.
+
+RViz opens by default. Wait for `map -> odom -> base_footprint` to resolve,
+give a **2D Goal Pose** a few metres ahead, and watch:
+
+```bash
+ros2 topic echo /hege/dry_run/report        # what the wheels would be told
+ros2 topic echo /cmd_vel/nav                # what Nav2 decided, before limiting
+```
+
+A line of the report reads:
+
+```
+v=0.30 m/s  omega=+0.100 rad/s  steer=+32.3 deg  R=3.0 m  (asked +0.35, +0.180)  [saturated]
+```
+
+Left to right: the speed and yaw rate the bridge would act on, the front-wheel
+angle that delivers them, the radius of the circle that is, what Nav2 actually
+asked for, and whether anything was clipped on the way. `steer` is the one to
+watch - it is the number with a mechanical limit you can see on the vehicle, and
+its sign is where a steering reversal shows up.
+
+Three things worth checking in that output, because each is a real fault that
+looks like nothing:
+
+- **The sign.** Positive `steer` is left. If the plan bends left and `steer` is
+  negative, something is mirrored, and finding that here costs nothing.
+- **`[saturated]` on a straight line.** Means Nav2 is asking for more than the
+  bridge allows even when it should not be, usually a speed mismatch between
+  `nav2_real_overlay.yaml` and `bridge_real.yaml`.
+- **`-> STOP (...)`** with a plan on screen. The reason says which rule fired.
+  `reverse requested` means the planner produced a path this vehicle cannot
+  drive; check that the PX4 overlay is really loaded.
+
+The same thing works in the Gazebo Classic simulation, where it is worth doing
+first because nothing there is expensive. Start the simulation as usual but
+send Nav2's output somewhere the controller is not listening, and read it with
+the dry run instead:
+
+```bash
+ros2 launch hege_description spawn_hege.launch.py
+ros2 launch hege_localization localization.launch.py
+ros2 launch hege_navigation navigation.launch.py rviz:=true cmd_vel_topic:=/cmd_vel/nav
+ros2 run hege_px4_bridge dry_run --ros-args -p cmd_vel_topic:=/cmd_vel/nav
+```
+
+`cmd_vel_topic:=/cmd_vel/nav` is what makes the simulated wheels stay still.
+`spawn_hege.launch.py` starts `cmd_vel_relay`, which listens on `/cmd_vel` and
+is the only thing feeding the Ackermann controller; publishing on
+`/cmd_vel/nav` instead leaves it with nothing to relay while the planner keeps
+running. Drop that argument and it drives, exactly as before.
+
+**This does not need Gazebo Harmonic.** Harmonic is only needed for PX4 SITL,
+which this is not - there is no PX4 in the simulation dry run at all. The
+Classic simulation that already drove a waypoint mission is the right place.
+
 ## Giving it one waypoint
 
 For a first autonomous move, **use RViz rather than a waypoint file**. A file
@@ -115,16 +185,18 @@ before shortening them.
 
 ## The order to do it in
 
-1. Set the three parameters above. The bridge will not start otherwise.
-2. **Driven wheels lifted.** Launch, arm, give a goal, and watch the wheels
+1. The dry run above, first in simulation and then on the vehicle. It needs
+   none of the measurements below and cannot move anything.
+2. Set the three parameters above. The bridge will not start otherwise.
+3. **Driven wheels lifted.** Launch, arm, give a goal, and watch the wheels
    turn and the steering move. Confirm the steering goes the way the plan
    bends — this is where a sign error shows up, and it is much cheaper to find
    here.
-3. Wheels down, cleared area, one goal a few metres straight ahead. RC
+4. Wheels down, cleared area, one goal a few metres straight ahead. RC
    takeover in someone's hands, physical E-stop within reach.
-4. A goal that needs a turn.
-5. A short waypoint route.
-6. Then start tuning against what you measured.
+5. A goal that needs a turn.
+6. A short waypoint route.
+7. Then start tuning against what you measured.
 
 ## What to watch, and what it means
 
