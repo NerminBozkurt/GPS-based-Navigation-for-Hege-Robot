@@ -53,9 +53,10 @@ a day in the field.
 | PX4 offboard heartbeat at 20 Hz | Working *(same)* |
 | ROS GPS, IMU and odometry conversion | Working *(same)* |
 | HERE3 correction path, RTK Float outdoors | Working *(same)* |
+| `/cmd_vel` driving the real rover through the bridge | Working, wheels turn on hardware |
 | Gazebo Harmonic port of the simulation | **Written, never run** |
 | PX4 SITL driving the Hege model | **Written, never run** |
-| Nav2 driving the real rover through PX4 | **Not attempted** |
+| Nav2 driving the real rover through PX4 | **Launch file written, never run** |
 
 The last three are the honest edge of this project. `docs/px4_sitl.md` and
 `docs/gazebo_harmonic.md` each end with a section saying exactly what was and
@@ -239,10 +240,21 @@ ros2 topic echo /fmu/out/vehicle_gps_position --once
 ros2 topic echo /hege/bridge/status --once
 ```
 
-Note that `real.launch.py` starts the agent, `twist_mux`, the bridge and the
-sensor conversion — **not** localization or Nav2. There is no real-vehicle
-autonomous launch yet; `hege_sitl.launch.py` shows the combination it would
-need.
+`real.launch.py` starts the agent, `twist_mux`, the bridge and the sensor
+conversion — the plumbing. With it, the rover moves when a human sends
+`/cmd_vel` and not otherwise.
+
+`hege_real.launch.py` adds the layer that decides where to go: TF, the dual
+EKF and Nav2, wired to the Pixhawk instead of to Gazebo.
+
+    ROS_DOMAIN_ID=73 ros2 launch hege_bringup hege_real.launch.py rviz:=true
+
+Launching it does **not** make the rover move. `bridge_real.yaml` keeps
+`allow_remote_vehicle_commands: false`, so nothing in the stack can arm the
+vehicle or change its mode; that stays with RC and QGroundControl. It also
+ships `px4_yaw_p: 0.0` and the bridge refuses to start on that, until somebody
+reads the tuned `RO_YAW_P` off QGroundControl. **`docs/real_vehicle.md` has the
+three things to measure first and the order to test in.**
 
 ## Command arbitration
 
@@ -382,6 +394,7 @@ find src -name package.xml -print0 | xargs -0 grep -h '<name>' | sort | uniq -d
 | `docs/px4_bridge.md` | How a `Twist` becomes an offboard setpoint, what the safety supervisor does, and the five things to settle before Nav2 drives the real rover |
 | `docs/px4_sitl.md` | Joining the two simulations: the model generated from the xacro, the names PX4 hardcodes, and what has and has not been verified |
 | `docs/gazebo_harmonic.md` | The Harmonic port: why the two Gazebos cannot coexist, what changed, and what to install |
+| `docs/real_vehicle.md` | Going from sending `/cmd_vel` to the rover choosing its own: what to measure first, the order to test in, and what the failure modes look like |
 
 ## External dependencies
 
