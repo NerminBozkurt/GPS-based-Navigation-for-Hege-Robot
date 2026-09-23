@@ -1,9 +1,10 @@
 # Bridge parameters for the real HEGE rover (Pixhawk 6X, PX4 v1.16.1 rover build).
 #
 # Geometry below uses the operator-provided measurements: 1.90 m wheelbase and
-# 35 degrees maximum steering. Kept in step with hege.urdf.xacro, which is this
-# repository's single source of truth for the vehicle. Verify both mechanically and set
-# them consistently in PX4
+# 35 degrees maximum steering, kept in step with hege.urdf.xacro, which is this
+# repository's single source of truth for the vehicle.
+#
+# Verify both mechanically and set them consistently in PX4
 # !!! (QGroundControl) and here. The bridge refuses to start while required
 # !!! geometry/gain values are 0.
 # PX4 procedure: docs "Configuration/Tuning (Ackermann Rover)" -> Manual mode:
