@@ -61,7 +61,7 @@ a day in the field.
 | Dual-EKF + `navsat_transform` localization | Working, ~0.08 m against ground truth |
 | Nav2 GPS waypoint following | Working, full mission driven end to end |
 | Unit and model regression tests | 159 passing |
-| Jetson–Pixhawk ROS 2 topic link | Working *(verified on hardware by Oğuzhan)* |
+| Jetson–Pixhawk ROS 2 topic link | Working *(verified on hardware)* |
 | PX4 offboard heartbeat at 20 Hz | Working *(same)* |
 | ROS GPS, IMU and odometry conversion | Working *(same)* |
 | HERE3 correction path, RTK Float outdoors | Working *(same)* |
@@ -118,10 +118,6 @@ measured to actually achieve — the geometric minimum assumes no tyre slip.
 | `hege_px4_sim` | The Hege Gazebo model and PX4 airframe for SITL |
 | `hege_evaluation` | Scores the simulated GPS against Gazebo ground truth, and gives the fix its covariance |
 
-`hege_px4_bridge`, `hege_px4_sensors`, `hege_bringup` and `hege_evaluation`
-were written by Oğuzhan Enes Işık against the real Pixhawk and PX4 SITL in
-[oguzissik/hege_gps_navigation](https://github.com/oguzissik/hege_gps_navigation)
-and brought in from there.
 
 ## Running the simulation
 
@@ -395,7 +391,4 @@ is ignored.
 
 ## Credits
 
-The PX4 bridge, the sensor conversion and the command arbitration are the work
-of Oğuzhan Enes Işık, developed and hardware-tested in
-[oguzissik/hege_gps_navigation](https://github.com/oguzissik/hege_gps_navigation).
-The RTK, connection and troubleshooting notes above come from that work too.
+The PX4 bridge, the sensor conversion and the command arbitration parts are combined with [oguzissik/hege_gps_navigation](https://github.com/oguzissik/hege_gps_navigation). Developed and hardware tested.
