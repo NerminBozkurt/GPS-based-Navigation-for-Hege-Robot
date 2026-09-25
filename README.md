@@ -105,53 +105,6 @@ R_min = L / tan(delta_max) = 1.90 / tan(0.611) = 2.71 m
 Nav2 is held to **6.0 m** rather than 2.71, because that is what the rover was
 measured to actually achieve — the geometric minimum assumes no tyre slip.
 
-### Reconciled with oguzissik
-
-These numbers used to differ from
-[oguzissik/hege_gps_navigation](https://github.com/oguzissik/hege_gps_navigation),
-where the PX4 packages came from — rear track, front wheel radius, steering
-limit and 100 kg of mass. Both sets were described as measured. The values
-above are now that repository's `VERIFIED MEASUREMENTS` block, adopted
-wholesale, so the two agree.
-
-Two things left over from the reconciliation:
-
-- oguzissik's own repository carries **1.90 m** in its xacro and **1.91 m** in
-  `bridge_real.yaml`, and its README says "1.90–1.91 m". This repository uses
-  1.90 everywhere, from the xacro. It changes the turning radius by under a
-  centimetre, but the number should be settled rather than left as a range.
-- The wheel and knuckle masses are still ours (80/45/15 kg). They are estimates
-  in both repositories, not measurements, and ours were tuned for solver
-  stability — a large mass ratio across a joint makes ODE diverge. Only the
-  1300 kg total is measured, and the chassis absorbs the difference.
-
-The measured turning radii in `nav2_params.yaml` — 4.20 m at 0.6 m/s, 4.64 at
-1.0, 5.44 at 1.5 — were taken **before** this change and have not been
-re-measured. The geometric minimum moved from 2.79 m to 2.71 m; the achievable
-one may have moved too.
-
-Three later changes from that repository are now adopted as well, and each one
-moved something else with it:
-
-- **`base_footprint` sits at the rear axle**, not under the middle of the
-  vehicle. That is the bicycle model's reference point and what
-  `ackermann_steering_controller` computes its odometry about, so
-  `base_frame_id: base_footprint` only means what it says with the frame there.
-  Nav2's footprint polygon moved with it — it now runs from −0.5 m to +2.2 m
-  instead of −1.4 to +1.3.
-- **Lateral tyre friction dropped from 1.0 to 0.8**, which lets the tyres scrub
-  further in a corner and widens the achieved turning circle.
-- **`hege_evaluation`**, which scores the simulated GPS against ground truth and
-  publishes the running error on `/hege/evaluation/gps_noise`. Its
-  `sim_gps_covariance` node is not optional in the Harmonic path: Gazebo
-  publishes the fix with no covariance, and the EKF has to be told how far to
-  trust it.
-
-The first two both act on the numbers already pending a re-measure, in opposite
-directions — lower friction widens the circle, a rear-axle origin narrows it by
-about 0.1 m at these radii. `nav2_params.yaml` spells that out where the radii
-are set.
-
 ## Packages
 
 | Package | What it is |
