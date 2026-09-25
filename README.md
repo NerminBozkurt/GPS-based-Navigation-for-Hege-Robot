@@ -16,6 +16,18 @@ The repository holds two halves that meet at the Pixhawk:
   supervisor, PX4-to-ROS sensor conversion, command arbitration, and a Gazebo
   model that lets PX4 SITL drive this specific vehicle.
 
+## Branches
+
+`main` is the maintained line, described by this README.
+
+[`alternative/bale-vision-navigation`](../../tree/alternative/bale-vision-navigation)
+is a second, independent take on the same robot by Michal Czaplinski. It
+diverged early from this line and does not merge back: a Dubins path planner
+in place of Nav2's default, a `BaleDetection` camera interface for locating
+bales in the field, and its own PX4 offboard bridge for the real tractor,
+built separately from `hege_px4_bridge` above. Kept as a reference, not
+under further development.
+
 ## System architecture
 
 ```mermaid
