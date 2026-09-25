@@ -9,8 +9,7 @@ robot with GPS as the only localization source.
 
 ## This branch
 
-This is an alternative navigation stack for the same robot, developed
-independently by Michal Czaplinski. It diverged early from
+This is an alternative navigation stack for the same robot. It diverged early from
 [`main`](../../tree/main), which is the maintained line with the fuller
 README, and does not merge back into it. Kept here as a reference, not under
 further development.
