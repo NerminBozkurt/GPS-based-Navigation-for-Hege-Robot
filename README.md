@@ -21,7 +21,7 @@ The repository holds two halves that meet at the Pixhawk:
 `main` is the maintained line, described by this README.
 
 [`alternative/bale-vision-navigation`](../../tree/alternative/bale-vision-navigation)
-is a second, independent take on the same robot by Michal Czaplinski. It
+is a second, independent take on the same robot. It
 diverged early from this line and does not merge back: a Dubins path planner
 in place of Nav2's default, a `BaleDetection` camera interface for locating
 bales in the field, and its own PX4 offboard bridge for the real tractor,
